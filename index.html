@@ -342,6 +342,8 @@
     const m = (j && (j.error && (j.error.message || j.error) || j.message)) || '';
     if (status === 401) return 'Clé OpenRouteService refusée. Vérifiez la clé dans ⚙️ Réglages.';
     if (status === 403) return 'Clé refusée ou limite du jour atteinte. Vérifiez la clé dans ⚙️ Réglages, ou réessayez demain.';
+    if (status === 404 || (typeof m === 'string' && m.indexOf('routable point') >= 0))
+      return 'Aucune route trouvée près de ce point. Mettez une adresse précise (numéro, rue, ville, État), pas seulement un État ou une ville.';
     if (status === 429) return 'Trop de demandes aujourd\'hui avec cette clé. Réessayez plus tard.';
     return 'Erreur (' + status + ') ' + (typeof m === 'string' ? m : JSON.stringify(m));
   }
@@ -396,6 +398,7 @@
     const body = {
       coordinates: [[from[1], from[0]], [to[1], to[0]]],
       language: 'fr', units: 'mi', instructions: true, geometry_simplify: false,
+      radiuses: [2000, 5000],
       options: { vehicle_type: 'hgv', profile_params: { restrictions: restr } }
     };
     if (t.avoidTolls) body.options.avoid_features = ['tollways'];
