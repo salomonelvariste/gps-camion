@@ -363,16 +363,20 @@
       } catch(e){ $(resId).innerHTML = ''; msg('routeMsg', esc(e.message)); }
     };
     $(goId).onclick = run;
+    // Si on retape une adresse, l'ancien choix est effacé
+    $(qId).addEventListener('input', () => { setFn(null); $(chosenId).classList.add('hidden'); $(chosenId).textContent = ''; });
     $(qId).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
   }
   setupSearch('startQ', 'startGo', 'startRes', 'startChosen', it => {
     startPt = it;
+    if (!it) { if (startMarker) { map.removeLayer(startMarker); startMarker = null; } return; }
     if (startMarker) map.removeLayer(startMarker);
     startMarker = L.marker([it.lat, it.lng], { icon:emo('🟢') }).addTo(map);
     map.setView([it.lat, it.lng], 13);
   });
   setupSearch('endQ', 'endGo', 'endRes', 'endChosen', it => {
     endPt = it;
+    if (!it) { if (endMarker) { map.removeLayer(endMarker); endMarker = null; } return; }
     if (endMarker) map.removeLayer(endMarker);
     endMarker = L.marker([it.lat, it.lng], { icon:emo('🏁') }).addTo(map);
     map.setView([it.lat, it.lng], 13);
@@ -432,7 +436,7 @@
       if (!startPt) { msg('routeMsg', 'Choisissez une adresse de départ dans la liste.'); return; }
       from = [startPt.lat, startPt.lng];
     }
-    if (!endPt) { msg('routeMsg', 'Cherchez puis touchez l\'adresse d\'arrivée dans la liste.'); return; }
+    if (!endPt) { msg('routeMsg', 'Touchez 🔎 puis touchez la bonne adresse dans la liste.'); return; }
     $('btnCalc').disabled = true; $('btnCalc').textContent = 'Calcul en cours…';
     try {
       try { routes = await fetchRoute(from, [endPt.lat, endPt.lng], true); }
