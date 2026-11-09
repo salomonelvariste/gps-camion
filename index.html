@@ -98,13 +98,29 @@
   .check { display:flex; align-items:center; gap:12px; font-size:16px; margin:12px 0; }
   .check input { width:24px; height:24px; accent-color:var(--bleuF); }
 
+  .chips { display:flex; gap:8px; overflow-x:auto; padding:10px 0 4px; scrollbar-width:none; }
+  .chips::-webkit-scrollbar { display:none; }
+  .chips button { flex:none; background:var(--gris); color:var(--texte); border-radius:14px; padding:10px 12px; font-size:14px; font-weight:700;
+    display:flex; flex-direction:column; align-items:center; gap:3px; min-width:84px; }
+  .chips button span { font-size:22px; }
+  .list .item .sub { font-size:13px; color:var(--gris2); margin-top:2px; }
+  .list .item .sub a { color:var(--bleuF); font-weight:700; text-decoration:none; }
+  .badge { display:inline-block; font-size:12px; font-weight:800; padding:3px 7px; border-radius:7px; margin-right:4px; }
+  .badge.peage { background:#ffe7b3; color:#7a4b00; }
+  .badge.nopeage { background:#dff5ea; color:#17603a; }
+  #vTurns { background:#11161c; color:#fff; }
+  #vTurns .sheetHead h2 { color:#fff; }
+  .turn { display:flex; gap:14px; align-items:center; padding:12px 2px; border-bottom:1px solid #26303a; }
+  .turn .a { font-size:34px; width:44px; text-align:center; flex:none; }
+  .turn .dd { font-size:19px; font-weight:800; }
+  .turn .nn { font-size:16px; color:#5fd3ff; font-weight:700; margin-top:2px; }
   /* ---------- Signalements ---------- */
   .repGrid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-top:8px; }
   .repGrid button { background:var(--gris); color:var(--texte); border-radius:18px; padding:16px 4px 12px; font-size:15px; font-weight:700; display:flex; flex-direction:column; align-items:center; gap:6px; }
   .repGrid button span { font-size:36px; }
 
   /* ---------- Navigation ---------- */
-  #navTop { position:absolute; z-index:1000; left:10px; right:10px; top:calc(var(--safeT) + 10px); background:#1f6f43; color:#fff;
+  #navTop { cursor:pointer; position:absolute; z-index:1000; left:10px; right:10px; top:calc(var(--safeT) + 10px); background:#1f6f43; color:#fff;
     border-radius:20px; padding:12px 16px; box-shadow:0 4px 14px rgba(0,0,0,.35); display:flex; gap:14px; align-items:center; }
   #navArrow { font-size:48px; line-height:1; width:58px; text-align:center; flex:none; }
   #navDist { font-size:30px; font-weight:800; line-height:1.05; }
@@ -159,8 +175,15 @@
     </div>
     <div class="list" id="startRes"></div>
   </div>
+  <div class="chips" id="chips">
+    <button data-c="fuel"><span>⛽</span>Carburant camion</button>
+    <button data-c="parking"><span>🅿️</span>Parking camion</button>
+    <button data-c="rest"><span>🛏️</span>Aires de repos</button>
+    <button data-c="weigh"><span>⚖️</span>Pesées</button>
+  </div>
   <div id="searchMsg"></div>
   <div class="list" id="endRes"></div>
+  <div class="list" id="homeWork"></div>
   <div id="recentWrap">
     <div class="sectionT">Récents</div>
     <div class="list" id="recentList"></div>
@@ -244,6 +267,13 @@
     <button data-r="closed"><span>⛔</span>Route fermée</button>
   </div>
   <div class="note">Le signalement est placé là où vous êtes. L'application vous prévient si vous repassez près de cet endroit.</div>
+</div>
+
+<!-- Liste des prochains virages -->
+<div id="vTurns" class="sheet full hidden">
+  <div class="sheetHead"><h2>Prochains virages</h2><button class="xbtn" id="turnsClose">✕</button></div>
+  <div id="turnList"></div>
+  <button class="btnBig grisB" id="turnsClose2" style="margin-top:14px">Fermer</button>
 </div>
 
 <!-- Navigation -->
@@ -369,7 +399,7 @@
   let nav = null, watchId = null, wakeLock = null;
 
   // ================= Vues =================
-  const views = ['vSearch','vPreview','vMenu','vReport'];
+  const views = ['vSearch','vPreview','vMenu','vReport','vTurns'];
   function openView(id){
     views.forEach(v => v === id ? show(v) : hide(v));
     const homeUI = !id && !nav;
@@ -383,7 +413,7 @@
     else if (open && open !== 'vSearch') bottom = $(open).offsetHeight + 14;
     $('fabR').style.bottom = 'calc(' + bottom + 'px + ' + (nav || open ? '0px' : 'var(--safeB)') + ')';
     $('speedBox').style.bottom = $('fabR').style.bottom;
-    $('fabR').classList.toggle('hidden', open === 'vSearch');
+    $('fabR').classList.toggle('hidden', open === 'vSearch' || open === 'vTurns');
   }
   window.addEventListener('resize', placeFabs);
 
@@ -497,12 +527,32 @@
       renderList(resId, list, onPick);
     } catch(e){ $(resId).innerHTML = ''; msg('searchMsg', e.message); }
   }
+  let setMode = null;   // 'home' ou 'work' quand on choisit l'adresse à garder
+  function renderHomeWork(){
+    const box = $('homeWork'); box.innerHTML = '';
+    [['home','🏠','Domicile'], ['work','🏢','Travail']].forEach(([k, ic, name]) => {
+      const p = store.get(k, null);
+      const d = document.createElement('div'); d.className = 'item';
+      d.innerHTML = '<div class="ic">' + ic + '</div><div style="flex:1"><div><b>' + name + '</b></div><div class="sub">' +
+        (p ? esc(p.label) + ' · <a href="#" data-edit="1">Modifier</a>' : '<a href="#">Définir l\'adresse</a>') + '</div></div>';
+      d.onclick = e => {
+        e.preventDefault();
+        if (!p || (e.target.dataset && e.target.dataset.edit)) {
+          setMode = k; $('endQ').value = ''; $('endQ').placeholder = 'Adresse : ' + name; $('endQ').focus();
+          msg('searchMsg', 'Tapez l\'adresse (' + name + '), touchez 🔎 puis choisissez-la.', true);
+        } else pickEnd(p);
+      };
+      box.appendChild(d);
+    });
+  }
   function renderRecent(){
+    renderHomeWork();
     const rec = store.get('recent', []);
     $('recentWrap').classList.toggle('hidden', !rec.length);
     renderList('recentList', rec.map(r => Object.assign({ icon:'🕘' }, r)), pickEnd);
   }
   function openSearch(){
+    setMode = null; $('endQ').placeholder = 'Adresse de livraison';
     $('endQ').value = ''; $('endRes').innerHTML = ''; msg('searchMsg', '');
     renderRecent(); openView('vSearch');
     setTimeout(() => $('endQ').focus(), 50);
@@ -512,6 +562,53 @@
   $('endGo').onclick = () => runSearch('endQ', 'endRes', pickEnd);
   $('endQ').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('endQ').blur(); runSearch('endQ', 'endRes', pickEnd); } });
   $('endQ').addEventListener('input', () => { $('recentWrap').classList.toggle('hidden', $('endQ').value.trim() !== '' || !store.get('recent', []).length); });
+
+  // ----- Recherche à proximité (OpenStreetMap)
+  const CATS = {
+    fuel:    { t:'Carburant camion', ic:'⛽', q: a => 'nwr["amenity"="fuel"]["hgv"~"yes|designated"]'+a+';nwr["highway"="services"]'+a+';' },
+    parking: { t:'Parking camion',   ic:'🅿️', q: a => 'nwr["amenity"="parking"]["hgv"~"yes|designated"]'+a+';nwr["amenity"="parking"]["parking"="truck"]'+a+';' },
+    rest:    { t:'Aire de repos',    ic:'🛏️', q: a => 'nwr["highway"="rest_area"]'+a+';nwr["highway"="services"]'+a+';' },
+    weigh:   { t:'Station de pesée', ic:'⚖️', q: a => 'nwr["amenity"="weighbridge"]'+a+';nwr["highway"="weigh_station"]'+a+';' }
+  };
+  document.querySelectorAll('#chips button').forEach(b => b.onclick = () => searchNearby(b.dataset.c));
+  async function searchNearby(c){
+    const cat = CATS[c];
+    const center = startPt ? [startPt.lat, startPt.lng] : myPos;
+    msg('searchMsg', '');
+    if (!center) { msg('searchMsg', 'Position GPS introuvable. Autorisez la localisation pour Safari.'); return; }
+    $('recentWrap').classList.add('hidden'); $('homeWork').innerHTML = '';
+    $('endRes').innerHTML = '<div class="loading">Recherche ' + cat.ic + ' ' + cat.t.toLowerCase() + ' autour de vous…</div>';
+    const a = '(around:40000,' + center[0].toFixed(5) + ',' + center[1].toFixed(5) + ')';
+    const q = '[out:json][timeout:40];(' + cat.q(a) + ');out center tags 80;';
+    try {
+      const r = await fetch('https://overpass-api.de/api/interpreter', { method:'POST',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'data=' + encodeURIComponent(q) });
+      if (!r.ok) throw new Error();
+      const j = await r.json();
+      const seen = new Set();
+      const items = [];
+      (j.elements || []).forEach(e => {
+        const lat = e.lat != null ? e.lat : e.center && e.center.lat, lng = e.lon != null ? e.lon : e.center && e.center.lon;
+        if (lat == null) return;
+        const t = e.tags || {};
+        const name = t.name || t.brand || t.operator || cat.t;
+        const d = hav(center, [lat, lng]);
+        const place = [t['addr:city'], t['addr:state']].filter(Boolean).join(', ');
+        const k = name + Math.round(d / 300);
+        if (seen.has(k)) return; seen.add(k);
+        items.push({ lat, lng, d, label: name + (place ? ', ' + place : ''), icon: cat.ic });
+      });
+      items.sort((x, y) => x.d - y.d);
+      if (!items.length) { $('endRes').innerHTML = ''; msg('searchMsg', 'Rien trouvé à moins de 25 miles dans OpenStreetMap.'); return; }
+      $('endRes').innerHTML = '';
+      items.slice(0, 15).forEach(it => {
+        const d = document.createElement('div'); d.className = 'item';
+        d.innerHTML = '<div class="ic">' + it.icon + '</div><div style="flex:1"><div>' + esc(it.label) + '</div><div class="sub">' + fmtDist(it.d) + ' à vol d\'oiseau</div></div>';
+        d.onclick = () => pickEnd(it);
+        $('endRes').appendChild(d);
+      });
+    } catch(e){ $('endRes').innerHTML = ''; msg('searchMsg', 'Service occupé. Réessayez dans une minute.'); }
+  }
 
   $('fromChange').onclick = e => {
     e.preventDefault();
@@ -529,6 +626,13 @@
     startMarker = L.marker([it.lat, it.lng], { icon:emo('🟢') }).addTo(map);
   }
   function pickEnd(it){
+    if (setMode) {
+      store.set(setMode, { lat:it.lat, lng:it.lng, label:it.label, layer:it.layer });
+      const nm = setMode === 'home' ? 'Domicile' : 'Travail';
+      setMode = null; $('endQ').value = ''; $('endQ').placeholder = 'Adresse de livraison'; $('endRes').innerHTML = '';
+      renderRecent(); msg('searchMsg', nm + ' enregistré ✔', true);
+      return;
+    }
     endPt = { lat:it.lat, lng:it.lng, label:it.label, layer:it.layer };
     const rec = store.get('recent', []).filter(r => r.label !== it.label);
     rec.unshift(endPt); store.set('recent', rec.slice(0, 6));
@@ -553,7 +657,7 @@
     const body = {
       coordinates: [[from[1], from[0]], [to[1], to[0]]],
       language: 'fr', units: 'mi', instructions: true, geometry_simplify: false,
-      radiuses: [2000, 5000], extra_info: ['maxspeed'],
+      radiuses: [2000, 5000], extra_info: ['maxspeed', 'tollways'],
       options: { vehicle_type: 'hgv', profile_params: { restrictions: restr } }
     };
     if (t.avoidTolls) body.options.avoid_features = ['tollways'];
@@ -573,8 +677,10 @@
       const steps = [];
       (f.properties.segments || []).forEach(s => (s.steps || []).forEach(st => steps.push(st)));
       const ms = f.properties.extras && f.properties.extras.maxspeed;
+      const tw = f.properties.extras && f.properties.extras.tollways;
+      const toll = tw ? tw.values.some(v => v[2] === 1) : null;
       return { latlngs, steps, miles: f.properties.summary.distance || 0, secs: f.properties.summary.duration || 0,
-               maxspeed: ms ? ms.values : [] };
+               maxspeed: ms ? ms.values : [], toll };
     });
   }
   async function calc(){
@@ -614,8 +720,8 @@
       routeLayers.push(l);
     });
     const c = routes[chosen];
-    routeLayers.push(L.polyline(c.latlngs, { color:'#0b5a85', weight:13, opacity:.9 }).addTo(map));
-    routeLayers.push(L.polyline(c.latlngs, { color:'#33ccff', weight:8 }).addTo(map));
+    routeLayers.push(L.polyline(c.latlngs, { color:'#4b1fa8', weight:13, opacity:.9 }).addTo(map));
+    routeLayers.push(L.polyline(c.latlngs, { color:'#8a4dff', weight:8 }).addTo(map));
     if (!nav) {
       const sheetH = $('vPreview').offsetHeight || 300;
       map.fitBounds(L.latLngBounds(c.latlngs), { paddingTopLeft:[30, 30], paddingBottomRight:[30, sheetH + 20] });
@@ -629,7 +735,8 @@
       const d = document.createElement('div');
       d.className = 'routeCard' + (i === chosen ? ' on' : '');
       const mi = r.miles < 10 ? r.miles.toFixed(1).replace('.', ',') : Math.round(r.miles);
-      d.innerHTML = '<div><div class="t">' + fmtDur(r.secs) + '</div><div class="d">' + mi + ' mi · arrivée ' + arrive(r.secs) + '</div></div>' +
+      d.innerHTML = '<div><div class="t">' + fmtDur(r.secs) + '</div><div class="d">' + mi + ' mi · arrivée ' + arrive(r.secs) + '</div>' +
+                    (r.toll === true ? '<div style="margin-top:5px"><span class="badge peage">💲 Péage</span></div>' : r.toll === false ? '<div style="margin-top:5px"><span class="badge nopeage">Sans péage</span></div>' : '') + '</div>' +
                     (i === 0 ? '<span class="tag">Plus rapide</span>' : '');
       d.onclick = () => selectRoute(i);
       box.appendChild(d);
@@ -840,6 +947,27 @@
     checkAlerts();
     if (n.follow) map.setView(myPos, map.getZoom(), { animate:true });
   }
+
+  // ----- Liste des prochains virages (toucher le bandeau vert)
+  function openTurns(){
+    if (!nav) return;
+    const n = nav, steps = n.route.steps, box = $('turnList'); box.innerHTML = '';
+    const k = Math.max(0, n.stepK);
+    let acc = Math.max(0, n.cum[Math.min(steps[k].way_points[1], n.cum.length-1)] - (n.cum[n.idx] || 0));
+    for (let i = k + 1; i < steps.length; i++) {
+      const st = steps[i];
+      const d = document.createElement('div'); d.className = 'turn';
+      const nm = (st.name && st.name !== '-') ? st.name : '';
+      d.innerHTML = '<div class="a">' + (ARROWS[st.type] || '⬆️') + '</div><div><div class="dd">' + fmtDist(acc) + '</div><div class="nn">' +
+                    esc(nm || st.instruction) + '</div>' + (nm ? '<div style="color:#9fb0c0;font-size:13px;margin-top:2px">' + esc(st.instruction) + '</div>' : '') + '</div>';
+      box.appendChild(d);
+      acc += (st.distance || 0) * M_PER_MI;
+    }
+    if (!box.children.length) box.innerHTML = '<div class="loading">Plus de virage : vous arrivez.</div>';
+    openView('vTurns');
+  }
+  $('navTop').onclick = openTurns;
+  $('turnsClose').onclick = $('turnsClose2').onclick = () => openView(null);
 
   function aheadOfMe(p){
     if (myHeading == null) return true;
