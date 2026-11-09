@@ -9,6 +9,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#33ccff">
 <title>Mon GPS Camion</title>
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -160,6 +163,25 @@
   <div id="speedLim" class="hidden"><small>SPEED<br>LIMIT</small><b id="limVal">55</b></div>
 </div>
 
+<!-- Bienvenue (première ouverture) -->
+<div id="vWelcome" class="sheet full hidden" style="z-index:1300">
+  <div style="text-align:center;font-size:64px;margin-top:10px">🚛</div>
+  <h2 style="text-align:center;margin:6px 0 4px;font-size:26px">Mon GPS Camion</h2>
+  <div class="note" style="text-align:center;margin-top:0">GPS gratuit pour camion + trailer</div>
+  <div class="msg ok" style="margin-top:18px">
+    <b>Pour commencer (une seule fois) :</b><br>
+    1. Créez une clé gratuite sur <a href="https://account.heigit.org" target="_blank" rel="noopener" style="color:#0a84c6;font-weight:800">account.heigit.org</a> (ligne « Basic Key », bouton bleu à deux carrés pour copier).<br>
+    2. Collez-la dans ☰ Menu › Réglages.<br>
+    3. Mettez les mesures de votre camion dans ☰ Menu › Camion.
+  </div>
+  <div class="msg err" style="margin-top:12px">
+    <b>Important :</b> cette application aide à choisir une route, mais les cartes peuvent contenir des erreurs ou des manques
+    (ponts bas, limites de poids, limites de vitesse, radars). <b>Regardez toujours les panneaux.</b>
+    Ne touchez pas le téléphone en roulant : préparez la route avant de partir.
+  </div>
+  <button class="btnBig bleu" id="welcomeOk" style="margin-top:18px">J'ai compris, commencer</button>
+</div>
+
 <!-- Recherche -->
 <div id="vSearch" class="sheet full hidden">
   <div class="searchRow">
@@ -230,7 +252,7 @@
     <div id="truckMsg"></div>
   </div>
   <div id="tSet" class="hidden">
-    <label>Clé OpenRouteService (gratuite sur account.heigit.org)</label>
+    <label>Clé OpenRouteService (gratuite sur <a href="https://account.heigit.org" target="_blank" rel="noopener" style="color:#0a84c6">account.heigit.org</a>)</label>
     <input type="password" id="apiKey" placeholder="Collez votre clé ici" autocomplete="off">
     <div class="check"><input type="checkbox" id="showKey"> <span>Afficher la clé</span></div>
     <label>Mode nuit</label>
@@ -249,7 +271,8 @@
     <div class="note">
       ⚠️ Les routes viennent d'OpenStreetMap. Les hauteurs de ponts, limites de poids et limites de vitesse peuvent manquer ou être fausses.
       Regardez toujours les panneaux. C'est vous le chauffeur.<br><br>
-      Vos signalements (police, accident…) restent seulement sur ce téléphone.
+      Vos signalements (police, accident…) restent seulement sur ce téléphone.<br><br>
+      Version 1.4 · 9 nov. 2026
     </div>
   </div>
 </div>
@@ -349,12 +372,31 @@
   const show = id => $(id).classList.remove('hidden');
   const hide = id => $(id).classList.add('hidden');
 
+  // Erreur réseau (pas d'internet) -> message clair
+  async function net(url, o){
+    try { return await fetch(url, o); }
+    catch(e){ throw new Error('Pas de connexion internet. Vérifiez le réseau et réessayez.'); }
+  }
+  // OpenStreetMap (Overpass) : on essaie plusieurs serveurs si le premier est occupé
+  const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+  async function overpass(q){
+    let last;
+    for (const u of OVERPASS) {
+      try {
+        const r = await fetch(u, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'data=' + encodeURIComponent(q) });
+        if (r.ok) return await r.json();
+        last = new Error('HTTP ' + r.status);
+      } catch(e){ last = e; }
+    }
+    throw last || new Error('overpass');
+  }
+
   // ================= Voix =================
   let muted = store.get('muted', false);
   function speak(t){
     if (muted || !('speechSynthesis' in window)) return;
     try {
-      speechSynthesis.cancel();
+      if (speechSynthesis.pending) speechSynthesis.cancel();   // évite une longue file, sans couper la phrase en cours
       const u = new SpeechSynthesisUtterance(t);
       u.lang = 'fr-FR';
       const v = speechSynthesis.getVoices().find(v => v.lang && v.lang.startsWith('fr'));
@@ -399,7 +441,7 @@
   let nav = null, watchId = null, wakeLock = null;
 
   // ================= Vues =================
-  const views = ['vSearch','vPreview','vMenu','vReport','vTurns'];
+  const views = ['vSearch','vPreview','vMenu','vReport','vTurns','vWelcome'];
   function openView(id){
     views.forEach(v => v === id ? show(v) : hide(v));
     const homeUI = !id && !nav;
@@ -413,15 +455,18 @@
     else if (open && open !== 'vSearch') bottom = $(open).offsetHeight + 14;
     $('fabR').style.bottom = 'calc(' + bottom + 'px + ' + (nav || open ? '0px' : 'var(--safeB)') + ')';
     $('speedBox').style.bottom = $('fabR').style.bottom;
-    $('fabR').classList.toggle('hidden', open === 'vSearch' || open === 'vTurns');
+    $('fabR').classList.toggle('hidden', open === 'vSearch' || open === 'vTurns' || open === 'vWelcome');
   }
   window.addEventListener('resize', placeFabs);
 
   // ================= Position =================
   function startWatch(){
     if (watchId !== null || !navigator.geolocation) return;
-    watchId = navigator.geolocation.watchPosition(onPos, () => {
-      if (nav) $('navText').textContent = 'Signal GPS perdu…';
+    watchId = navigator.geolocation.watchPosition(onPos, err => {
+      if (err && err.code === 1) {
+        watchId = null;
+        showAlert('📍 Localisation refusée. Réglages iPhone › Confidentialité › Service de localisation › Safari : « Lorsque l\'app est active ».', 9000);
+      } else if (nav) $('navText').textContent = 'Signal GPS perdu…';
     }, { enableHighAccuracy:true, maximumAge:2000, timeout:20000 });
   }
   function onPos(p){
@@ -502,7 +547,7 @@
     let url = 'https://api.heigit.org/pelias/v1/search?api_key=' + encodeURIComponent(key()) +
               '&text=' + encodeURIComponent(q) + '&boundary.country=US&size=7';
     if (myPos) url += '&focus.point.lat=' + myPos[0] + '&focus.point.lon=' + myPos[1];
-    const r = await fetch(url, { headers: { 'Authorization': key() } });
+    const r = await net(url, { headers: { 'Authorization': key() } });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(errText(j, r.status));
     return (j.features || []).map(f => ({ lat:f.geometry.coordinates[1], lng:f.geometry.coordinates[0], label:f.properties.label, layer:f.properties.layer }));
@@ -581,10 +626,7 @@
     const a = '(around:40000,' + center[0].toFixed(5) + ',' + center[1].toFixed(5) + ')';
     const q = '[out:json][timeout:40];(' + cat.q(a) + ');out center tags 80;';
     try {
-      const r = await fetch('https://overpass-api.de/api/interpreter', { method:'POST',
-        headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'data=' + encodeURIComponent(q) });
-      if (!r.ok) throw new Error();
-      const j = await r.json();
+      const j = await overpass(q);
       const seen = new Set();
       const items = [];
       (j.elements || []).forEach(e => {
@@ -657,7 +699,7 @@
     const body = {
       coordinates: [[from[1], from[0]], [to[1], to[0]]],
       language: 'fr', units: 'mi', instructions: true, geometry_simplify: false,
-      radiuses: [2000, 5000],
+      radiuses: [1000, 1000],
       options: { vehicle_type: 'hgv', profile_params: { restrictions: restr } }
     };
     if (t.avoidTolls) body.options.avoid_features = ['tollways'];
@@ -666,15 +708,17 @@
     return body;
   }
   async function fetchRoute(from, to, withAlt){
-    try { return await fetchRoute1(from, to, withAlt, true); }
-    catch(e){
-      // Si le service refuse une option (trop long pour les routes alternatives, etc.), on réessaie en simple.
-      if (e.status === 400 || e.status === 500) return await fetchRoute1(from, to, false, false);
-      throw e;
+    // Le service gratuit refuse les routes alternatives au-delà d'environ 60 miles : on réessaie plus simplement.
+    const tries = withAlt ? [[true, true], [false, true], [false, false]] : [[false, true], [false, false]];
+    let last;
+    for (const [alt, ex] of tries) {
+      try { return await fetchRoute1(from, to, alt, ex); }
+      catch(e){ last = e; if (e.status !== 400 && e.status !== 500) throw e; }
     }
+    throw last;
   }
   async function fetchRoute1(from, to, withAlt, withExtras){
-    const r = await fetch('https://api.heigit.org/openrouteservice/v2/directions/driving-hgv/geojson', {
+    const r = await net('https://api.heigit.org/openrouteservice/v2/directions/driving-hgv/geojson', {
       method: 'POST',
       headers: { 'Authorization': key(), 'Content-Type': 'application/json', 'Accept': 'application/geo+json, application/json' },
       body: JSON.stringify(buildBody(from, to, withAlt, withExtras))
@@ -691,7 +735,9 @@
                toll };
     });
   }
+  let calcId = 0;
   async function calc(){
+    const my = ++calcId;
     openView('vPreview');
     $('prevDest').textContent = endPt ? 'Vers : ' + endPt.label : '';
     $('routeList').innerHTML = '<div class="loading">Calcul de la route camion…</div>';
@@ -708,11 +754,21 @@
       from = myPos;
     }
     try {
-      routes = await fetchRoute(from, [endPt.lat, endPt.lng], true);
-      if (!routes.length) throw new Error('Aucune route camion trouvée.');
+      const dest = endPt;
+      const res = await fetchRoute(from, [dest.lat, dest.lng], true);
+      if (my !== calcId || endPt !== dest) return;           // annulé pendant le calcul
+      if (!res.length) throw new Error('Aucune route camion trouvée.');
+      routes = res;
       chosen = 0; drawRoutes(); listRoutes(); show('btnStart');
+      const warn = [];
+      const last = routes[0].latlngs[routes[0].latlngs.length - 1];
+      const gap = hav(last, [dest.lat, dest.lng]);
+      if (gap > 250) warn.push('⚠️ La route s\'arrête à ' + fmtDist(gap) + ' de l\'adresse (pas de route camion connue plus près).');
+      if (dest.layer && ['street','locality','localadmin','county','region','postalcode','neighbourhood','borough'].indexOf(dest.layer) >= 0)
+        warn.push('⚠️ Adresse approximative (rue ou ville seulement). Pour une livraison, mettez le numéro exact.');
+      msg('routeMsg', warn.join('<br>'));
       loadPois(routes[0]);
-    } catch(e){ $('routeList').innerHTML = ''; msg('routeMsg', e.message); }
+    } catch(e){ if (my !== calcId) return; $('routeList').innerHTML = ''; msg('routeMsg', e.message); }
     placeFabs();
   }
   function drawRoutes(){
@@ -735,13 +791,14 @@
   function listRoutes(){
     const box = $('routeList'); box.innerHTML = '';
     const arrive = s => fmtClock(new Date(Date.now() + s*1000));
+    let fastest = 0; routes.forEach((r, i) => { if (r.secs < routes[fastest].secs) fastest = i; });
     routes.forEach((r, i) => {
       const d = document.createElement('div');
       d.className = 'routeCard' + (i === chosen ? ' on' : '');
       const mi = r.miles < 10 ? r.miles.toFixed(1).replace('.', ',') : Math.round(r.miles);
       d.innerHTML = '<div><div class="t">' + fmtDur(r.secs) + '</div><div class="d">' + mi + ' mi · arrivée ' + arrive(r.secs) + '</div>' +
                     (r.toll === true ? '<div style="margin-top:5px"><span class="badge peage">💲 Péage</span></div>' : r.toll === false ? '<div style="margin-top:5px"><span class="badge nopeage">Sans péage</span></div>' : '') + '</div>' +
-                    (i === 0 ? '<span class="tag">Plus rapide</span>' : '');
+                    (routes.length > 1 && i === fastest ? '<span class="tag">Plus rapide</span>' : '');
       d.onclick = () => selectRoute(i);
       box.appendChild(d);
     });
@@ -749,6 +806,7 @@
     placeFabs();
   }
   function cancelRoute(){
+    calcId++; poiReq++;
     routes = []; endPt = null;
     routeLayers.forEach(l => map.removeLayer(l)); routeLayers = [];
     if (endMarker) { map.removeLayer(endMarker); endMarker = null; }
@@ -781,11 +839,7 @@
     if (o.police) parts.push('nwr["amenity"="police"](around:400,' + line + ');');
     const q = '[out:json][timeout:90];(' + parts.join('') + ');out center tags;';
     try {
-      const r = await fetch('https://overpass-api.de/api/interpreter', {
-        method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'data=' + encodeURIComponent(q)
-      });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const j = await r.json();
+      const j = await overpass(q);
       if (my !== poiReq) return;
       const seen = new Set();
       (j.elements || []).forEach(e => {
@@ -842,7 +896,7 @@
   document.querySelectorAll('#vReport [data-r]').forEach(b => b.onclick = () => {
     if (!myPos) { showAlert('Position GPS introuvable', 2500); return; }
     const type = b.dataset.r;
-    const list = getReports(); list.push({ lat:myPos[0], lng:myPos[1], t:Date.now(), type });
+    const list = getReports().slice(-200); list.push({ lat:myPos[0], lng:myPos[1], t:Date.now(), type });
     store.set('reports', list); drawReports();
     if (nav) nav.alerted.add('r' + list[list.length-1].t);
     $('repClose').onclick();
@@ -852,6 +906,8 @@
 
   // ================= Navigation =================
   function showAlert(t, ms, color){
+    const top = nav ? $('navTop').getBoundingClientRect().bottom + 12 : null;
+    $('alertBox').style.top = top ? top + 'px' : '';
     $('alertBox').textContent = t; $('alertBox').style.background = color || '';
     show('alertBox');
     clearTimeout(showAlert.tm); showAlert.tm = setTimeout(() => hide('alertBox'), ms || 6000);
@@ -873,6 +929,7 @@
     hide('topBar'); show('navTop'); show('navBottom'); show('speedBox');
     updMute(); placeFabs(); keepAwake(); startWatch();
     speak('C\'est parti. Bonne route.');
+    showAlert('Gardez l\'application ouverte et l\'écran allumé pendant le trajet (téléphone branché).', 6000, '#0a84c6');
     if (myPos) { map.setView(myPos, 17); navUpdate(); }
   };
   $('btnStop').onclick = () => {
@@ -896,14 +953,11 @@
   }
   async function refreshLimit(){
     if (lim.busy || !myPos) return;
-    if (lim.pos && Date.now() - lim.t < 20000 && hav(lim.pos, myPos) < 400) return;
+    if (lim.pos && Date.now() - lim.t < 30000 && hav(lim.pos, myPos) < 500) return;
     lim.busy = true; lim.t = Date.now(); lim.pos = myPos.slice();
     try {
       const q = '[out:json][timeout:10];way(around:20,' + myPos[0].toFixed(6) + ',' + myPos[1].toFixed(6) + ')["highway"]["maxspeed"];out tags 6;';
-      const r = await fetch('https://overpass-api.de/api/interpreter', { method:'POST',
-        headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'data=' + encodeURIComponent(q) });
-      if (!r.ok) throw new Error();
-      const j = await r.json();
+      const j = await overpass(q);
       const rank = { motorway:1, trunk:2, primary:3, secondary:4, tertiary:5 };
       const ws = (j.elements || []).map(e => ({ h:(e.tags.highway || '').replace('_link',''), v:parseMaxspeed(e.tags['maxspeed:hgv'] || e.tags.maxspeed) }))
         .filter(w => w.v && w.v >= 5 && w.v <= 85).sort((a, b) => (rank[a.h] || 9) - (rank[b.h] || 9));
@@ -957,7 +1011,11 @@
       $('navDist').textContent = fmtDist(toTurn);
       $('navText').textContent = (next.name && next.name !== '-') ? next.name : next.instruction;
       const after = steps[k+2];
-      if (after && toTurn < 800 && after.distance < 0.25) { $('navThen').textContent = 'Puis ' + (ARROWS[after.type] || ''); show('navThen'); } else hide('navThen');
+      if (after && toTurn < 800 && after.distance < 0.25) {
+        $('navThen').textContent = 'Puis ' + (ARROWS[after.type] || '');
+        $('navThen').style.top = ($('navTop').getBoundingClientRect().bottom - 16) + 'px';
+        show('navThen');
+      } else hide('navThen');
       if (k !== n.stepK) { n.stepK = k; n.nearSaid = false; n.farSaid = false;
         if (toTurn > 600) { speak('Dans ' + sayDist(toTurn) + ', ' + next.instruction); n.farSaid = true; } }
       if (!n.farSaid && toTurn > 1600 && toTurn < 2000) { speak('Dans ' + sayDist(toTurn) + ', ' + next.instruction); n.farSaid = true; }
@@ -1041,10 +1099,14 @@
 
   // ================= Démarrage =================
   updMute(); drawReports(); startWatch(); openView(null);
-  if (!key()) {
-    openMenu('tSet');
-    msg('setMsg', 'Bienvenue ! Collez votre clé OpenRouteService ici, puis touchez Enregistrer.', true);
+  function afterWelcome(){
+    if (!key()) {
+      openMenu('tSet');
+      msg('setMsg', 'Collez votre clé OpenRouteService ici, puis touchez Enregistrer.', true);
+    }
   }
+  $('welcomeOk').onclick = () => { store.set('welcomed', 1); openView(null); afterWelcome(); };
+  if (!store.get('welcomed', 0) && !key()) openView('vWelcome'); else afterWelcome();
   if ('speechSynthesis' in window) speechSynthesis.getVoices();
 })();
 </script>
