@@ -643,7 +643,7 @@
   }
 
   // ================= Calcul de route =================
-  function buildBody(from, to, withAlt){
+  function buildBody(from, to, withAlt, withExtras){
     const t = Object.assign({}, defTruck, store.get('truck', {}));
     const ft2m = f => f * 0.3048;
     const restr = {
@@ -657,18 +657,27 @@
     const body = {
       coordinates: [[from[1], from[0]], [to[1], to[0]]],
       language: 'fr', units: 'mi', instructions: true, geometry_simplify: false,
-      radiuses: [2000, 5000], extra_info: ['maxspeed', 'tollways'],
+      radiuses: [2000, 5000],
       options: { vehicle_type: 'hgv', profile_params: { restrictions: restr } }
     };
     if (t.avoidTolls) body.options.avoid_features = ['tollways'];
+    if (withExtras) body.extra_info = ['tollways'];
     if (withAlt) body.alternative_routes = { target_count: 3, share_factor: 0.6, weight_factor: 1.6 };
     return body;
   }
   async function fetchRoute(from, to, withAlt){
+    try { return await fetchRoute1(from, to, withAlt, true); }
+    catch(e){
+      // Si le service refuse une option (trop long pour les routes alternatives, etc.), on réessaie en simple.
+      if (e.status === 400 || e.status === 500) return await fetchRoute1(from, to, false, false);
+      throw e;
+    }
+  }
+  async function fetchRoute1(from, to, withAlt, withExtras){
     const r = await fetch('https://api.heigit.org/openrouteservice/v2/directions/driving-hgv/geojson', {
       method: 'POST',
       headers: { 'Authorization': key(), 'Content-Type': 'application/json', 'Accept': 'application/geo+json, application/json' },
-      body: JSON.stringify(buildBody(from, to, withAlt))
+      body: JSON.stringify(buildBody(from, to, withAlt, withExtras))
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { const e = new Error(errText(j, r.status)); e.status = r.status; throw e; }
@@ -676,11 +685,10 @@
       const latlngs = f.geometry.coordinates.map(c => [c[1], c[0]]);
       const steps = [];
       (f.properties.segments || []).forEach(s => (s.steps || []).forEach(st => steps.push(st)));
-      const ms = f.properties.extras && f.properties.extras.maxspeed;
       const tw = f.properties.extras && f.properties.extras.tollways;
       const toll = tw ? tw.values.some(v => v[2] === 1) : null;
       return { latlngs, steps, miles: f.properties.summary.distance || 0, secs: f.properties.summary.duration || 0,
-               maxspeed: ms ? ms.values : [], toll };
+               toll };
     });
   }
   async function calc(){
@@ -700,11 +708,7 @@
       from = myPos;
     }
     try {
-      try { routes = await fetchRoute(from, [endPt.lat, endPt.lng], true); }
-      catch(e){
-        if (e.status === 400 || e.status === 500) routes = await fetchRoute(from, [endPt.lat, endPt.lng], false);
-        else throw e;
-      }
+      routes = await fetchRoute(from, [endPt.lat, endPt.lng], true);
       if (!routes.length) throw new Error('Aucune route camion trouvée.');
       chosen = 0; drawRoutes(); listRoutes(); show('btnStart');
       loadPois(routes[0]);
@@ -880,25 +884,46 @@
   };
   $('btnMute').onclick = () => { muted = !muted; store.set('muted', muted); updMute(); if (muted) try { speechSynthesis.cancel(); } catch(e){} };
 
-  function limitAt(idx){
-    const ms = nav.route.maxspeed;
-    for (const v of ms) if (idx >= v[0] && idx < v[1]) {
-      const kmh = v[2];
-      if (!kmh || kmh <= 0 || kmh > 140) return null;
-      return Math.round(kmh / 1.609344 / 5) * 5;   // km/h -> mph, arrondi à 5
-    }
-    return null;
+  // Limite de vitesse : lue dans OpenStreetMap autour de la position (toutes les ~20 s ou 400 m)
+  const lim = { mph:null, pos:null, t:0, busy:false };
+  function parseMaxspeed(v){
+    if (!v) return null;
+    const m = String(v).match(/(\d+)\s*(mph)?/i);
+    if (!m) return null;
+    const n = parseInt(m[1], 10);
+    if (m[2]) return n;
+    return Math.round(n / 1.609344 / 5) * 5;   // km/h -> mph
   }
+  async function refreshLimit(){
+    if (lim.busy || !myPos) return;
+    if (lim.pos && Date.now() - lim.t < 20000 && hav(lim.pos, myPos) < 400) return;
+    lim.busy = true; lim.t = Date.now(); lim.pos = myPos.slice();
+    try {
+      const q = '[out:json][timeout:10];way(around:20,' + myPos[0].toFixed(6) + ',' + myPos[1].toFixed(6) + ')["highway"]["maxspeed"];out tags 6;';
+      const r = await fetch('https://overpass-api.de/api/interpreter', { method:'POST',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'data=' + encodeURIComponent(q) });
+      if (!r.ok) throw new Error();
+      const j = await r.json();
+      const rank = { motorway:1, trunk:2, primary:3, secondary:4, tertiary:5 };
+      const ws = (j.elements || []).map(e => ({ h:(e.tags.highway || '').replace('_link',''), v:parseMaxspeed(e.tags['maxspeed:hgv'] || e.tags.maxspeed) }))
+        .filter(w => w.v && w.v >= 5 && w.v <= 85).sort((a, b) => (rank[a.h] || 9) - (rank[b.h] || 9));
+      lim.mph = ws.length ? ws[0].v : null;
+    } catch(e){ /* on garde l'ancienne valeur */ }
+    lim.busy = false;
+    if (nav) updateSpeed();
+  }
+  function limitAt(){ return lim.mph; }
   function updateSpeed(){
     const mph = Math.max(0, Math.round((mySpeed || 0) * 2.23694));
     $('speedNow').firstChild.nodeValue = mph;
-    const lim = nav ? limitAt(nav.idx) : null;
-    if (lim) { $('limVal').textContent = lim; show('speedLim'); } else hide('speedLim');
-    const over = lim && mph > lim + 5;
+    if (nav) refreshLimit();
+    const lm = nav ? limitAt() : null;
+    if (lm) { $('limVal').textContent = lm; show('speedLim'); } else hide('speedLim');
+    const over = lm && mph > lm + 5;
     $('speedNow').classList.toggle('trop', !!over);
     if (over && opts().speed) {
       if (!nav.overSince) nav.overSince = Date.now();
-      if (Date.now() - nav.overSince > 4000 && Date.now() - nav.overSaid > 60000) { speak('Attention, vitesse limitée à ' + lim + '.'); nav.overSaid = Date.now(); }
+      if (Date.now() - nav.overSince > 4000 && Date.now() - nav.overSaid > 60000) { speak('Attention, vitesse limitée à ' + lm + '.'); nav.overSaid = Date.now(); }
     } else if (nav) nav.overSince = 0;
   }
 
