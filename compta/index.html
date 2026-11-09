@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Compta Camion">
+<meta name="theme-color" content="#15803d">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<title>Ma Comptabilité Camion</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--ink:#1b1f24;--mute:#6b7280;--line:#e5e7eb;--green:#15803d;--greenbg:#e8f5ec;--red:#b91c1c;--redbg:#fdecec;--blue:#1d4ed8;--accent:#0f172a}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#181b21;--ink:#eef0f3;--mute:#9aa3ad;--line:#2a2f37;--green:#4ade80;--greenbg:#14301f;--red:#f87171;--redbg:#3a1717;--blue:#93b4ff;--accent:#e9edf3}}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);font-size:16px;padding-bottom:84px}
+header{padding:calc(14px + env(safe-area-inset-top)) 16px 8px;position:relative}
+h1{font-size:20px;margin:0}
+.sub{color:var(--mute);font-size:13px;margin-top:2px}
+main{padding:0 12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:10px 0}
+.row{display:flex;gap:8px;align-items:center}
+.between{justify-content:space-between}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.kpi{border-radius:12px;padding:12px;background:var(--card);border:1px solid var(--line)}
+.kpi .l{font-size:12px;color:var(--mute)}
+.kpi .v{font-size:20px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+.kpi.full{grid-column:1/3}
+.pos{color:var(--green)}.neg{color:var(--red)}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;border:0;background:none;padding:10px 0 12px;font-size:11px;color:var(--mute);display:flex;flex-direction:column;align-items:center;gap:3px}
+nav button .ic{font-size:20px}
+nav button.on{color:var(--ink);font-weight:600}
+label{display:block;font-size:13px;color:var(--mute);margin:12px 0 4px}
+input,select,textarea{width:100%;font-size:17px;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-family:inherit}
+.seg{display:flex;background:var(--bg);border-radius:12px;padding:4px;gap:4px}
+.seg button{flex:1;border:0;border-radius:9px;padding:11px;font-size:15px;background:none;color:var(--mute);font-weight:600}
+.seg button.on.in{background:var(--greenbg);color:var(--green)}
+.seg button.on.out{background:var(--redbg);color:var(--red)}
+.btn{display:block;width:100%;border:0;border-radius:12px;padding:14px;font-size:17px;font-weight:700;background:var(--accent);color:var(--bg);margin-top:16px}
+.btn.ghost{background:none;color:var(--ink);border:1px solid var(--line);font-weight:600}
+.mini{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:9px;padding:8px 12px;font-size:14px}
+.monthbar{display:flex;align-items:center;justify-content:space-between;margin:6px 0}
+.monthbar b{font-size:17px;text-transform:capitalize}
+.list .it{display:flex;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
+.list .it:last-child{border-bottom:0}
+.it .t{font-weight:600}
+.it .d{font-size:13px;color:var(--mute);margin-top:2px}
+.it .m{font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right}
+.it .acts{margin-top:6px;display:flex;gap:6px;justify-content:flex-end}
+.it .acts button{font-size:12px;padding:5px 9px;border-radius:7px;border:1px solid var(--line);background:none;color:var(--mute)}
+.bar{height:8px;border-radius:5px;background:var(--line);overflow:hidden;margin-top:5px}
+.bar i{display:block;height:100%;background:var(--red)}
+.cat{margin:10px 0}
+.cat .row{font-size:14px}
+.empty{color:var(--mute);text-align:center;padding:18px 0;font-size:15px}
+.note{font-size:12px;color:var(--mute);margin-top:6px}
+.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:var(--accent);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:.25s;pointer-events:none;z-index:9}
+.toast.show{opacity:1}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:8}
+.modal.show{display:flex}
+.modal .card{width:100%;margin:0;border-radius:18px 18px 0 0;padding:20px 16px calc(20px + env(safe-area-inset-bottom))}
+.status{font-size:12px;color:var(--mute)}
+h2{font-size:16px;margin:0 0 6px}
+.hidden{display:none!important}
+.msg{padding:10px 12px;border-radius:12px;margin:6px 0;white-space:pre-wrap;font-size:15px;line-height:1.4;max-width:92%}
+.msg.u{background:var(--accent);color:var(--bg);margin-left:auto}
+.msg.a{background:var(--bg);border:1px solid var(--line)}
+.chip{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:16px;padding:7px 11px;font-size:13px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🚚 Ma Comptabilité Camion</h1>
+  <button class="mini" style="position:absolute;right:12px;top:calc(12px + env(safe-area-inset-top))" onclick="CC.showSet()">⚙️</button>
+  <div class="sub">Revenus des loads et dépenses du camion · <span id="status" class="status">Chargement…</span></div>
+</header>
+
+<main>
+<!-- RÉGLAGES -->
+<section id="v-set" class="hidden">
+  <div class="card">
+    <h2>⚙️ Réglages</h2>
+    <div id="setMsg" class="sub" style="font-size:15px;color:var(--ink);margin:6px 0"></div>
+    <div id="loginBox" class="hidden">
+      <label>Votre e-mail</label><input id="sEmail" type="email" autocomplete="username">
+      <label>Mot de passe</label><input id="sPass" type="password" autocomplete="current-password">
+      <button class="btn" onclick="CC.login(false)">Se connecter</button>
+      <button class="btn ghost" onclick="CC.login(true)">Créer mon compte</button>
+    </div>
+    <div id="logoutBox" class="hidden"><div class="note">Connecté : <b id="whoami"></b></div>
+      <button class="btn ghost" onclick="go('resume')">⬅ Retour à l'application</button></div>
+  </div>
+  <div class="card">
+    <h2>🔑 Clés</h2>
+    <label>Supabase – Project URL</label><input id="sUrl" placeholder="https://xxxx.supabase.co" autocapitalize="off" autocorrect="off">
+    <label>Supabase – clé « anon public »</label><input id="sKey" placeholder="eyJ…" autocapitalize="off" autocorrect="off">
+    <label>Clé Google Gemini (gratuite, sur aistudio.google.com)</label><input id="sGem" type="password" placeholder="AIza…" autocapitalize="off" autocorrect="off">
+    <label>Modèle Gemini</label><input id="sModel" placeholder="gemini-2.5-flash" autocapitalize="off" autocorrect="off">
+    <button class="btn" onclick="CC.saveKeys()">Enregistrer les clés</button>
+    <div class="note">Les clés restent seulement sur ce téléphone. Elles ne sont pas dans le code sur GitHub.</div>
+  </div>
+  <div class="card">
+    <h2>🛠️ Première fois seulement : code Supabase</h2>
+    <div class="note" style="margin-top:0">Copiez ce code, puis dans Supabase : SQL Editor → collez → Run.</div>
+    <textarea id="sqlCode" rows="5" readonly style="font-size:11px;font-family:monospace">-- Ma Comptabilité Camion : à coller une seule fois dans Supabase > SQL Editor > Run
+create table if not exists public.items (
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  path text not null,
+  data jsonb not null,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, path)
+);
+alter table public.items enable row level security;
+drop policy if exists "chacun ses donnees" on public.items;
+create policy "chacun ses donnees" on public.items for all
+  using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+insert into storage.buckets (id, name, public) values ('papiers', 'papiers', false)
+  on conflict (id) do nothing;
+drop policy if exists "chacun ses papiers" on storage.objects;
+create policy "chacun ses papiers" on storage.objects for all to authenticated
+  using (bucket_id = 'papiers' and (storage.foldername(name))[1] = auth.uid()::text)
+  with check (bucket_id = 'papiers' and (storage.foldername(name))[1] = auth.uid()::text);
+</textarea>
+    <button class="btn ghost" onclick="navigator.clipboard.writeText(document.getElementById('sqlCode').value).then(()=>toast('Code copié ✔'),()=>toast('Sélectionnez et copiez le texte'))">📋 Copier le code</button>
+  </div>
+  <div id="logoutBox2" class="card"><button class="btn ghost" style="margin:0" onclick="CC.logout()">Se déconnecter</button></div>
+</section>
+
+<!-- RÉSUMÉ -->
+<section id="v-resume">
+  <div class="monthbar">
+    <button class="mini" onclick="shiftMonth(-1)">◀</button>
+    <b id="mLabel"></b>
+    <button class="mini" onclick="shiftMonth(1)">▶</button>
+  </div>
+  <div class="row" style="margin-bottom:8px">
+    <button class="btn ghost" style="margin:0;font-size:14px" onclick="go('docs')">📷 Envoyer un papier ou reçu</button>
+    <button class="btn ghost" style="margin:0;font-size:15px" onclick="go('ai')">🤖 Demander à l'assistant</button>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><div class="l">Revenus (loads)</div><div class="v pos" id="kIn">$0</div></div>
+    <div class="kpi"><div class="l">Dépenses</div><div class="v neg" id="kOut">$0</div></div>
+    <div class="kpi full"><div class="l">Bénéfice net du mois</div><div class="v" id="kNet">$0</div></div>
+    <div class="kpi"><div class="l">Nombre de loads</div><div class="v" id="kLoads">0</div></div>
+    <div class="kpi"><div class="l">Miles · revenu par mile</div><div class="v" id="kMiles" style="font-size:16px">—</div></div>
+    <div class="kpi"><div class="l">Coût par mile</div><div class="v neg" id="kCpm" style="font-size:18px">—</div></div>
+    <div class="kpi"><div class="l">Profit par mile</div><div class="v" id="kPpm" style="font-size:18px">—</div></div>
+  </div>
+  <div class="card hidden" id="verifCard" style="border-color:#d97706">
+    <h2>⚠️ À vérifier</h2>
+    <div id="verifTxt" class="sub" style="font-size:14px"></div>
+    <button class="btn ghost" style="margin-top:10px;padding:10px" onclick="filter='verif';setFilter('verif');go('hist')">Vérifier maintenant</button>
+  </div>
+  <div class="card">
+    <h2>💰 Argent qu'on vous doit</h2>
+    <div id="owed"></div>
+  </div>
+  <div class="card">
+    <h2>🛏️ Per diem (jours sur la route)</h2>
+    <div class="note" style="margin-top:0">Touchez les jours où vous avez dormi loin de la maison pour le travail.</div>
+    <div id="pdGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:10px"></div>
+    <div id="pdTot" class="list" style="margin-top:8px"></div>
+  </div>
+  <div class="card">
+    <h2>⛽ Carburant par état (IFTA) · <span id="qLabel"></span></h2>
+    <div id="ifta"></div>
+    <div class="note">Pour la déclaration IFTA, il faut aussi les miles par état (votre ELD les donne). Montrez ce tableau à votre comptable.</div>
+  </div>
+  <div class="card">
+    <h2>Dépenses par catégorie</h2>
+    <div id="cats"></div>
+  </div>
+  <div class="card">
+    <h2>Année <span id="yLabel"></span></h2>
+    <div class="list">
+      <div class="it"><span>Revenus</span><span class="m pos" id="yIn"></span></div>
+      <div class="it"><span>Dépenses</span><span class="m neg" id="yOut"></span></div>
+      <div class="it"><span><b>Bénéfice net</b></span><span class="m" id="yNet"></span></div>
+    </div>
+  </div>
+  <button class="btn ghost" onclick="copyReport()">📋 Copier le rapport du mois</button>
+  <button class="btn ghost" onclick="exportCSV()">📥 Fichier de l'année pour le comptable</button>
+  <div class="note" style="text-align:center">Pour l'envoyer par texto ou à votre comptable.</div>
+</section>
+
+<!-- AJOUTER -->
+<section id="v-add" class="hidden">
+  <div class="card">
+    <h2 id="formTitle">Nouvelle opération</h2>
+    <div class="seg">
+      <button id="tIn" class="in on" onclick="setType('revenu')">💵 Revenu (load)</button>
+      <button id="tOut" class="out" onclick="setType('depense')">🧾 Dépense</button>
+    </div>
+    <div id="scanBox" class="hidden" style="margin-top:12px">
+      <label class="btn ghost" style="text-align:center;margin:0;color:var(--ink);font-size:16px" for="scanIn">📷 Scanner un reçu (gaz, manger…)</label>
+      <input id="scanIn" type="file" accept="image/*" capture="environment" class="hidden" onchange="scanReceipt(this)">
+      <div id="scanMsg" class="note"></div>
+      <img id="scanPrev" class="hidden" style="max-width:100%;max-height:220px;border-radius:10px;margin-top:8px">
+    </div>
+    <form id="f" onsubmit="save(event)">
+      <label>Montant ($)</label>
+      <input id="fAmt" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" required>
+      <label>Date</label>
+      <input id="fDate" type="date" required>
+      <div id="inFields">
+        <label>Numéro du load</label>
+        <input id="fLoad" placeholder="ex. 458712">
+        <label>Client / broker</label>
+        <input id="fClient" placeholder="ex. Nom de la compagnie">
+        <label>Miles</label>
+        <input id="fMiles" type="number" inputmode="numeric" min="0" placeholder="ex. 420">
+        <label style="display:flex;align-items:center;gap:8px;color:var(--ink);font-size:15px"><input id="fPaye" type="checkbox" style="width:22px;height:22px"> Déjà payé</label>
+      </div>
+      <div id="outFields" class="hidden">
+        <label>Catégorie</label>
+        <select id="fCat"></select>
+        <label>Commerce / station</label>
+        <input id="fShop" placeholder="ex. Pilot, Love's, McDonald's">
+        <label>Gallons (pour le carburant)</label>
+        <input id="fGal" type="number" inputmode="decimal" step="0.001" min="0" placeholder="ex. 120.5">
+        <label>État où vous avez pris le carburant (IFTA)</label>
+        <input id="fEtat" maxlength="2" placeholder="ex. OH, IN, PA" style="text-transform:uppercase">
+      </div>
+      <label>Note (facultatif)</label>
+      <input id="fDesc" placeholder="ex. Pilot Columbus, de Columbus à Chicago…">
+      <button class="btn" type="submit" id="saveBtn">Enregistrer</button>
+      <button class="btn ghost hidden" type="button" id="cancelEdit" onclick="resetForm();go('hist')">Annuler</button>
+    </form>
+  </div>
+</section>
+
+<!-- ASSISTANT -->
+<section id="v-ai" class="hidden">
+  <div class="card" style="padding:12px">
+    <h2>🤖 Assistant</h2>
+    <div class="note" style="margin-top:0">Posez vos questions sur vos loads, dépenses et reçus. Pour parler au lieu d'écrire, appuyez sur le 🎤 du clavier de l'iPhone.</div>
+    <div id="chat" style="margin-top:10px"></div>
+    <div id="sugg" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+  </div>
+  <div id="aiOff" class="card hidden"><div class="empty">L'assistant n'est pas disponible ici. Ajoutez la clé Gemini dans ⚙️ Réglages.</div></div>
+  <form id="aiForm" onsubmit="ask(event)" style="display:flex;gap:6px;position:sticky;bottom:80px">
+    <textarea id="aiQ" rows="2" placeholder="Ex. Combien j'ai dépensé en gaz ce mois-ci ?" style="flex:1"></textarea>
+    <button class="btn" style="width:auto;margin:0;padding:0 16px" id="aiBtn">➤</button>
+  </form>
+</section>
+
+<!-- DOCUMENTS -->
+<section id="v-docs" class="hidden">
+  <div class="card">
+    <h2>📄 Envoyer un papier</h2>
+    <div class="note" style="margin-top:0">Rate confirmation, feuille de route, BOL, reçus de gaz ou de manger, ⛽ <b>photo de la pompe</b> quand il n'y a pas de reçu, 💳 <b>relevé ou capture d'écran de votre carte bancaire</b>… Envoyez juste la photo ou le PDF : l'assistant lit tout, trouve où prendre et déposer la charge, et <b>enregistre le montant tout seul</b>.</div>
+    <label class="btn" style="text-align:center;color:var(--bg)" for="docIn">➕ Ajouter photo ou PDF</label>
+    <input id="docIn" type="file" accept="image/*,application/pdf" multiple class="hidden" onchange="addDocument(this)">
+    <div class="note">Vous pouvez choisir plusieurs pages d'un coup : elles iront dans le même document.</div>
+    <div id="docMsg" class="note"></div>
+  </div>
+  <div id="docOff" class="card hidden"><div class="empty">Les documents ne sont pas disponibles ici. Ajoutez la clé Gemini dans ⚙️ Réglages.</div></div>
+  <div class="card" id="docTot"></div>
+  <div id="docList"></div>
+</section>
+
+<!-- HISTORIQUE -->
+<section id="v-hist" class="hidden">
+  <div class="monthbar">
+    <button class="mini" onclick="shiftMonth(-1)">◀</button>
+    <b id="mLabel2"></b>
+    <button class="mini" onclick="shiftMonth(1)">▶</button>
+  </div>
+  <div class="seg" style="margin-bottom:6px">
+    <button id="hAll" class="on in" onclick="setFilter('all')">Tout</button>
+    <button id="hIn" onclick="setFilter('revenu')">Revenus</button>
+    <button id="hOut" onclick="setFilter('depense')">Dépenses</button>
+    <button id="hVer" onclick="setFilter('verif')">⚠️</button>
+  </div>
+  <div class="card list" id="hist"></div>
+</section>
+</main>
+
+<nav>
+  <button id="n-resume" class="on" onclick="go('resume')"><span class="ic">📊</span>Résumé</button>
+  <button id="n-add" onclick="resetForm();go('add')"><span class="ic">➕</span>Ajouter</button>
+  <button id="n-docs" onclick="go('docs')"><span class="ic">📄</span>Documents</button>
+  <button id="n-hist" onclick="go('hist')"><span class="ic">📋</span>Historique</button>
+  <button id="n-ai" onclick="go('ai')"><span class="ic">🤖</span>Assistant</button>
+</nav>
+
+<div class="modal" id="modal"><div class="card">
+  <h2 id="mTitle">Supprimer ?</h2>
+  <div id="mText" class="sub" style="font-size:15px"></div>
+  <button class="btn" style="background:var(--red);color:#fff" id="mOk">Supprimer</button>
+  <button class="btn ghost" onclick="closeModal()">Annuler</button>
+</div></div>
+<div class="modal" id="pModal" onclick="this.classList.remove('show')"><div class="card" style="text-align:center">
+  <div id="pBody" class="empty">Chargement…</div>
+  <button class="btn ghost">Fermer</button>
+</div></div>
+<div class="modal" id="dModal"><div class="card" style="max-height:92vh;overflow:auto">
+  <div class="row between"><h2 id="dTitle" style="margin:0">Document</h2><button class="mini" onclick="$('dModal').classList.remove('show')">✕ Fermer</button></div>
+  <div id="dBody" style="margin-top:10px"></div>
+</div></div>
+<div class="modal" id="shareModal"><div class="card" style="text-align:center">
+  <h2>Le fichier est prêt</h2>
+  <button class="btn" onclick="shareNow()">📤 Envoyer maintenant</button>
+  <button class="btn ghost" onclick="this.closest('.modal').classList.remove('show')">Annuler</button>
+</div></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ===== Version autonome : Supabase (données + fichiers) et Google Gemini (lecture des papiers) =====
+(function(){
+const LS=k=>{try{return localStorage.getItem(k)||""}catch(e){return""}};
+const cfg={url:LS("cc-sb-url"),key:LS("cc-sb-key"),gem:LS("cc-gem"),model:LS("cc-gem-model")||"gemini-2.5-flash"};
+let sb=null,uid=null,readyRes;const ready=new Promise(r=>readyRes=r);
+const cache=new Map(),listeners=[];
+const snapDoc=p=>{const d=cache.get(p);return{id:p.split("/").pop(),exists:!!d,data:()=>d,metadata:{fromCache:false,hasPendingWrites:false}}};
+function fire(l){if(l.kind==="doc")return l.next(snapDoc(l.path));const pre=l.path+"/";
+  const docs=[...cache.keys()].filter(k=>k.startsWith(pre)&&!k.slice(pre.length).includes("/")).map(snapDoc);
+  l.next({docs,size:docs.length,empty:!docs.length,metadata:{fromCache:false,hasPendingWrites:false},docChanges:()=>[]})}
+const notify=()=>listeners.forEach(l=>{try{fire(l)}catch(e){console.error(e)}});
+const listen=(kind,path,next)=>{const l={kind,path,next};listeners.push(l);setTimeout(()=>fire(l),0);return()=>{const i=listeners.indexOf(l);if(i>=0)listeners.splice(i,1)}};
+async function put(path,data){cache.set(path,data);notify();
+  const {error}=await sb.from("items").upsert({user_id:uid,path,data,updated_at:new Date().toISOString()});
+  if(error)throw{code:"unavailable",message:error.message}}
+const clean=d=>JSON.parse(JSON.stringify(d));
+function ref(path){return{id:path.split("/").pop(),path,
+  get:async()=>snapDoc(path),
+  set:d=>put(path,clean(d)),
+  update:async d=>{const c=cache.get(path);if(!c)throw{code:"invalid_argument"};return put(path,{...c,...clean(d)})},
+  delete:async()=>{cache.delete(path);notify();const{error}=await sb.from("items").delete().eq("user_id",uid).eq("path",path);if(error)throw{code:"unavailable"}},
+  onSnapshot:(next)=>listen("doc",path,next),
+  collection:p=>col(path+"/"+p)}}
+function col(path){return{path,doc:id=>ref(path+"/"+(id||("x"+Date.now().toString(36)+Math.random().toString(36).slice(2,8)))),onSnapshot:(next)=>listen("col",path,next)}}
+async function loadAll(){const all=[];for(let from=0;;from+=1000){
+    const{data,error}=await sb.from("items").select("path,data").eq("user_id",uid).range(from,from+999);
+    if(error)throw error;all.push(...data);if(data.length<1000)break}
+  cache.clear();all.forEach(r=>cache.set(r.path,r.data));notify()}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&uid)loadAll().catch(()=>{})});
+
+// Fichiers (photos et PDF) dans Supabase Storage, dossier privé de l'utilisateur
+const assets={
+  upload:async(blob,opt={})=>{const type=opt.type||blob.type||"image/jpeg";const ext=type==="application/pdf"?"pdf":(type.split("/")[1]||"jpg").replace("jpeg","jpg");
+    const id=uid+"/"+Date.now().toString(36)+Math.random().toString(36).slice(2,8)+"."+ext;
+    const{error}=await sb.storage.from("papiers").upload(id,blob,{contentType:type});
+    if(error)throw{code:/size|large/i.test(error.message)?"too_large":"upstream_error",message:error.message};
+    return{id,url:"",sizeBytes:blob.size,contentType:type}},
+  delete:async id=>{await sb.storage.from("papiers").remove([id]);return{deleted:true}}};
+const fileBlob=async id=>{const{data,error}=await sb.storage.from("papiers").download(id);if(error)throw error;return data};
+const fileUrl=async id=>{const{data}=await sb.storage.from("papiers").createSignedUrl(id,3600);return data&&data.signedUrl};
+
+// Google Gemini (clé gratuite) à la place de Claude
+async function toB64(blob){const b=new Uint8Array(await blob.arrayBuffer());let s="";for(let i=0;i<b.length;i+=0x8000)s+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000));return btoa(s)}
+async function small(blob){try{const bm=await createImageBitmap(blob);const s=Math.min(1,1600/Math.max(bm.width,bm.height));
+    if(s===1&&blob.size<1.5e6&&/jpeg|png|webp/.test(blob.type))return blob;
+    const c=document.createElement("canvas");c.width=Math.round(bm.width*s);c.height=Math.round(bm.height*s);c.getContext("2d").drawImage(bm,0,0,c.width,c.height);
+    return await new Promise(r=>c.toBlob(r,"image/jpeg",.85))}catch(e){return blob}}
+async function contents(input,images){const turns=typeof input==="string"?[{role:"user",content:input}]:input;const out=[];
+  for(const t of turns){const role=t.role==="assistant"?"model":"user",last=out[out.length-1];
+    if(last&&last.role===role)last.parts[0].text+="\n\n"+t.content;else out.push({role,parts:[{text:t.content}]})}
+  if(images){const arr=images instanceof Blob?[images]:[...images],last=out[out.length-1];
+    for(const b of arr){const s=await small(b);last.parts.push({inline_data:{mime_type:s.type||"image/jpeg",data:await toB64(s)}})}}
+  return out}
+async function gem(c,json){let r,j;
+  try{r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cfg.model)}:generateContent`,{method:"POST",
+    headers:{"Content-Type":"application/json","x-goog-api-key":cfg.gem},
+    body:JSON.stringify({contents:c,generationConfig:json?{responseMimeType:"application/json",temperature:0}:{temperature:0.3}})});
+    j=await r.json().catch(()=>({}))}catch(e){throw{code:"upstream_error",message:"réseau"}}
+  if(!r.ok)throw{code:r.status===429?"rate_limited":(r.status===400||r.status===401||r.status===403)?"not_granted":"upstream_error",message:(j.error&&j.error.message)||String(r.status)};
+  const text=((j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts)||[]).map(p=>p.text||"").join("");
+  if(!text)throw{code:"empty_completion"};return text}
+const sample=async(input,opt={})=>{const text=await gem(await contents(input,opt.images),false);opt.onText&&opt.onText({text,delta:text});return{text,truncated:false}};
+sample.json=async(input,opt={})=>{const text=await gem(await contents(input,opt.images),true);
+  try{return JSON.parse(text)}catch(e){const m=text.match(/[\[{][\s\S]*[\]}]/);if(m)try{return JSON.parse(m[0])}catch(e2){}throw{code:"invalid_json",text}}};
+sample.limits=async()=>({maxPromptBytes:900000,images:{maxCount:8,maxInputBytes:2e7,mediaTypes:["image/jpeg","image/png","image/webp","image/heic"]}});
+
+// Envoyer / enregistrer un fichier : menu de partage de l'iPhone
+let pendingShare=null;
+const downloads={save:async({filename,data})=>{
+  const ext=(filename.split(".").pop()||"").toLowerCase(),types={pdf:"application/pdf",csv:"text/csv",jpg:"image/jpeg",png:"image/png",webp:"image/webp"};
+  const file=new File([data],filename,{type:types[ext]||"application/octet-stream"});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+    try{await navigator.share({files:[file]});return{status:"saved"}}
+    catch(e){if(e&&e.name==="AbortError")throw{code:"declined"};
+      // iPhone : le partage doit venir d'un toucher direct → on propose un 2e bouton
+      pendingShare=file;const m=document.getElementById("shareModal");if(m){m.classList.add("show");return{status:"saved"}}}}
+  const a=document.createElement("a");a.href=URL.createObjectURL(file);a.download=filename;document.body.appendChild(a);a.click();a.remove();return{status:"saved"}}};
+window.shareNow=async()=>{document.getElementById("shareModal").classList.remove("show");if(pendingShare)try{await navigator.share({files:[pendingShare]})}catch(e){}pendingShare=null};
+
+window.claude={use:async name=>{await ready;
+  if(name==="db")return{doc:ref,collection:col};if(name==="assets")return assets;if(name==="downloads")return downloads;
+  if(name==="sample")return cfg.gem?sample:null;return null}};
+
+// Réglages et connexion
+const $=id=>document.getElementById(id);
+function showSet(msg){document.querySelectorAll("main>section").forEach(s=>s.classList.add("hidden"));$("v-set").classList.remove("hidden");
+  document.querySelectorAll("nav button").forEach(b=>b.classList.remove("on"));if(msg)$("setMsg").textContent=msg;refreshSet()}
+function refreshSet(){$("sUrl").value=cfg.url;$("sKey").value=cfg.key;$("sGem").value=cfg.gem;$("sModel").value=cfg.model;
+  $("loginBox").classList.toggle("hidden",!sb||!!uid);$("logoutBox").classList.toggle("hidden",!uid);$("logoutBox2").classList.toggle("hidden",!uid);
+  if(uid&&sb)sb.auth.getUser().then(r=>{$("whoami").textContent=(r.data&&r.data.user&&r.data.user.email)||""})}
+window.CC={showSet,fileBlob,fileUrl,
+  saveKeys:()=>{const set=(k,v)=>{try{localStorage.setItem(k,v.trim())}catch(e){}};
+    set("cc-sb-url",$("sUrl").value);set("cc-sb-key",$("sKey").value);set("cc-gem",$("sGem").value);set("cc-gem-model",$("sModel").value||"gemini-2.5-flash");
+    $("setMsg").textContent="✔ Enregistré. Rechargement…";setTimeout(()=>location.reload(),600)},
+  login:async signup=>{const email=$("sEmail").value.trim(),password=$("sPass").value;
+    if(!email||password.length<6){$("setMsg").textContent="Entrez votre e-mail et un mot de passe (6 caractères minimum).";return}
+    $("setMsg").textContent="⏳ …";
+    const r=signup?await sb.auth.signUp({email,password}):await sb.auth.signInWithPassword({email,password});
+    if(r.error){$("setMsg").textContent="Erreur : "+r.error.message;return}
+    if(signup&&!r.data.session){$("setMsg").textContent="✔ Compte créé. Ouvrez l'e-mail de confirmation, touchez le lien, puis revenez ici et touchez « Se connecter ».";return}
+    location.reload()},
+  logout:async()=>{await sb.auth.signOut();location.reload()}};
+async function boot(){
+  if(!cfg.url||!cfg.key||!window.supabase){showSet("Bienvenue ! Collez vos clés ci-dessous pour commencer.");return}
+  try{sb=window.supabase.createClient(cfg.url,cfg.key,{auth:{persistSession:true,autoRefreshToken:true}})}catch(e){showSet("Adresse Supabase invalide.");return}
+  const{data}=await sb.auth.getSession();
+  if(!data.session){showSet("Connectez-vous ou créez votre compte.");return}
+  uid=data.session.user.id;
+  try{await loadAll()}catch(e){showSet("Impossible de lire vos données : "+(e.message||e)+". Avez-vous lancé le code SQL dans Supabase ?");readyRes();return}
+  readyRes();
+  if(!cfg.gem){const s=document.getElementById("status");if(s)s.textContent="ajoutez la clé Gemini dans ⚙️ pour lire les papiers"}
+}
+setTimeout(boot,0);
+})();
+
+</script>
+<script>
+const CATS=["Carburant (diesel)","Péages","Réparations / entretien","Pneus","Assurance","Paiement / location du camion","Permis, taxes, IFTA","Repas","Hôtel / douche","Téléphone / internet","Frais de dispatch","Lavage","Autre","Personnel (pas le camion)"];
+const PERSO="Personnel (pas le camion)";
+const isBizOut=o=>o.type==="depense"&&o.categorie!==PERSO;
+const LSKEY="compta-camion-ops";
+let ops=[];          // {id,type,montant,date,categorie,load,client,miles,description}
+let db=null, col=null, useLocal=false;
+let type="revenu", filter="all", editId=null;
+let cur=new Date(); cur.setDate(1);
+
+const $=id=>document.getElementById(id);
+const fmt=n=>(n<0?"-":"")+"$"+Math.abs(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const ymd=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const ym=d=>ymd(d).slice(0,7);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const frDate=s=>{const [y,m,d]=s.split("-");return d+"/"+m+"/"+y};
+
+$("fCat").innerHTML=CATS.map(c=>`<option>${c}</option>`).join("");
+$("fDate").value=ymd(new Date());
+
+function toast(t){const e=$("toast");e.textContent=t;e.classList.add("show");setTimeout(()=>e.classList.remove("show"),1800)}
+function go(v){$("v-set").classList.add("hidden");["resume","add","docs","hist","ai"].forEach(x=>{$("v-"+x).classList.toggle("hidden",x!==v);$("n-"+x).classList.toggle("on",x===v)});window.scrollTo(0,0)}
+function shiftMonth(n){cur.setMonth(cur.getMonth()+n);render()}
+function setType(t){type=t;$("tIn").classList.toggle("on",t==="revenu");$("tOut").classList.toggle("on",t==="depense");$("inFields").classList.toggle("hidden",t!=="revenu");$("outFields").classList.toggle("hidden",t!=="depense");$("scanBox").classList.toggle("hidden",!(t==="depense"&&sample))}
+function setFilter(f){filter=f;[["hAll","all","in"],["hIn","revenu","in"],["hOut","depense","out"],["hVer","verif","out"]].forEach(([id,v,c])=>{const b=$(id);b.className=(v===f?"on "+c:"")});render()}
+
+const RATE_PD=80, PD_DED=0.8; // IRS 2026-2027 : 80 $/jour (transport), 80 % déductible
+const sum=a=>a.reduce((x,o)=>x+(+o.montant||0),0);
+const toVerify=o=>o.auto&&o.verifie===false;
+const unpaid=o=>o.type==="revenu"&&!o.paye;
+let pdDays=[];
+function monthOps(){const k=ym(cur);return ops.filter(o=>o.date&&o.date.startsWith(k))}
+function render(){
+  const lbl=cur.toLocaleDateString("fr-FR",{month:"long",year:"numeric"});
+  $("mLabel").textContent=lbl;$("mLabel2").textContent=lbl;
+  const m=monthOps();
+  const inn=m.filter(o=>o.type==="revenu"),out=m.filter(isBizOut),perso=m.filter(o=>o.type==="depense"&&o.categorie===PERSO).reduce((a,o)=>a+(+o.montant||0),0);
+  const sIn=inn.reduce((a,o)=>a+(+o.montant||0),0),sOut=out.reduce((a,o)=>a+(+o.montant||0),0),net=sIn-sOut;
+  $("kIn").textContent=fmt(sIn);$("kOut").textContent=fmt(sOut);
+  $("kNet").textContent=fmt(net);$("kNet").className="v "+(net>=0?"pos":"neg");
+  $("kLoads").textContent=inn.length;
+  const miles=inn.reduce((a,o)=>a+(+o.miles||0),0);
+  $("kMiles").textContent=miles?miles.toLocaleString("en-US")+" mi · "+fmt(sIn/miles)+"/mi":"—";
+  $("kCpm").textContent=miles?fmt(sOut/miles)+"/mi":"—";
+  $("kPpm").textContent=miles?fmt(net/miles)+"/mi":"—";$("kPpm").className="v "+(net>=0?"pos":"neg");
+  // à vérifier
+  const tv=ops.filter(toVerify);$("verifCard").classList.toggle("hidden",!tv.length);
+  $("verifTxt").textContent=tv.length+" montant(s) lu(s) automatiquement par l'assistant, pas encore vérifié(s) : "+fmt(sum(tv))+". Regardez vite si les chiffres sont bons.";
+  // on vous doit
+  const ow=ops.filter(unpaid).sort((a,b)=>a.date.localeCompare(b.date));
+  $("owed").innerHTML=ow.length?`<div class="it" style="padding-top:0"><b>Total à recevoir</b><b class="pos">${fmt(sum(ow))}</b></div>`+ow.map(o=>{const days=Math.floor((Date.now()-new Date(o.date+"T12:00:00"))/864e5);
+    return `<div class="it"><div><div class="t">Load ${o.load?"#"+esc(o.load):""} ${esc(o.client||"")}</div><div class="d">${frDate(o.date)} · il y a ${days} jour(s)${days>30?" ⚠️":""}</div></div><div><div class="m">${fmt(+o.montant)}</div><div class="acts"><button onclick="markPaid('${o.id}')">✔ Payé</button></div></div></div>`}).join(""):`<div class="empty">Tout est payé 👍</div>`;
+  renderPerDiem();renderIfta();
+  // catégories
+  const by={};out.forEach(o=>{by[o.categorie||"Autre"]=(by[o.categorie||"Autre"]||0)+(+o.montant||0)});
+  const arr=Object.entries(by).sort((a,b)=>b[1]-a[1]);
+  $("cats").innerHTML=arr.length?arr.map(([c,v])=>`<div class="cat"><div class="row between"><span>${esc(c)}</span><b>${fmt(v)}</b></div><div class="bar"><i style="width:${(v/sOut*100).toFixed(1)}%"></i></div></div>`).join(""):`<div class="empty">Aucune dépense ce mois-ci.</div>`;
+  if(perso)$("cats").innerHTML+=`<div class="note">Dépenses personnelles (pas comptées dans le bénéfice) : ${fmt(perso)}</div>`;
+  // année
+  const y=String(cur.getFullYear());$("yLabel").textContent=y;
+  const yo=ops.filter(o=>o.date&&o.date.startsWith(y));
+  const yIn=yo.filter(o=>o.type==="revenu").reduce((a,o)=>a+(+o.montant||0),0),yOut=yo.filter(isBizOut).reduce((a,o)=>a+(+o.montant||0),0);
+  $("yIn").textContent=fmt(yIn);$("yOut").textContent=fmt(yOut);$("yNet").textContent=fmt(yIn-yOut);$("yNet").className="m "+(yIn-yOut>=0?"pos":"neg");
+  renderDocs();
+  // historique
+  const h=(filter==="verif"?ops.filter(toVerify):m.filter(o=>filter==="all"||o.type===filter)).sort((a,b)=>b.date.localeCompare(a.date)||(b.created||0)-(a.created||0));
+  $("hist").innerHTML=h.length?h.map(o=>{
+    const isIn=o.type==="revenu";
+    const title=isIn?("Load"+(o.load?" #"+esc(o.load):"")+(o.client?" · "+esc(o.client):"")):esc(o.categorie);
+    const det=[frDate(o.date),isIn&&o.miles?o.miles+" mi":"",o.gallons?o.gallons+" gal":"",o.etat?esc(o.etat):"",esc(o.commerce),esc(o.description)].filter(Boolean).join(" · ");
+    return `<div class="it"><div><div class="t">${isIn?"💵":"🧾"} ${title}</div><div class="d">${det}</div></div><div><div class="m ${isIn?"pos":"neg"}">${isIn?"+":"-"}${fmt(+o.montant||0)}</div><div class="acts">${toVerify(o)?`<button style="color:#d97706;border-color:#d97706" onclick="markOk('${o.id}')">⚠️ C'est bon</button>`:""}${isIn?(o.paye?`<button onclick="markPaid('${o.id}',false)">✔ Payé</button>`:`<button onclick="markPaid('${o.id}')">⏳ Pas payé</button>`):""}${o.photo?`<button onclick="showPhoto('${o.id}')">📷 Reçu</button>`:""}${o.docId?`<button onclick="openDoc('${o.docId}')">📄 Papier</button>`:""}<button onclick="edit('${o.id}')">Modifier</button><button onclick="askDel('${o.id}')">Supprimer</button></div></div></div>`}).join(""):`<div class="empty">Rien d'enregistré pour ce mois.<br>Appuyez sur ➕ Ajouter.</div>`;
+}
+
+function resetForm(){editId=null;linkDoc=null;pendingPhoto=null;$("scanPrev").classList.add("hidden");$("scanMsg").textContent="";$("f").reset();$("fDate").value=ymd(new Date());setType("revenu");$("formTitle").textContent="Nouvelle opération";$("saveBtn").textContent="Enregistrer";$("cancelEdit").classList.add("hidden")}
+function edit(id){const o=ops.find(x=>x.id===id);if(!o)return;editId=id;setType(o.type);
+  $("fAmt").value=o.montant;$("fDate").value=o.date;$("fLoad").value=o.load||"";$("fClient").value=o.client||"";$("fMiles").value=o.miles||"";$("fCat").value=o.categorie||"Autre";$("fDesc").value=o.description||"";$("fShop").value=o.commerce||"";$("fGal").value=o.gallons||"";$("fEtat").value=o.etat||"";$("fPaye").checked=!!o.paye;
+  $("formTitle").textContent="Modifier l'opération";$("saveBtn").textContent="Enregistrer les changements";$("cancelEdit").classList.remove("hidden");go("add")}
+
+async function save(e){
+  e.preventDefault();
+  const amt=parseFloat($("fAmt").value);if(!(amt>0)){toast("Entrez un montant");return}
+  const o={type,montant:Math.round(amt*100)/100,date:$("fDate").value,description:$("fDesc").value.trim()};
+  if(type==="revenu"){o.load=$("fLoad").value.trim();o.client=$("fClient").value.trim();o.miles=parseFloat($("fMiles").value)||0;o.paye=$("fPaye").checked}
+  else{o.categorie=$("fCat").value;o.commerce=$("fShop").value.trim();o.gallons=parseFloat($("fGal").value)||0;o.etat=$("fEtat").value.trim().toUpperCase().slice(0,2)}
+  o.verifie=true;
+  const id=editId||("op"+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
+  const old=editId?ops.find(x=>x.id===editId):null;
+  o.created=old?.created||Date.now();if(old?.auto)o.auto=true;
+  o.photo=!!(pendingPhoto||old?.photo);
+  const dId=linkDoc||old?.docId;if(dId)o.docId=dId;
+  $("saveBtn").disabled=true;
+  try{
+    if(useLocal){ops=ops.filter(x=>x.id!==id);ops.push({...o,id});saveLocal();render()}
+    else{
+      if(pendingPhoto){try{await db.doc("recus/"+id).set({img:pendingPhoto})}catch(e){o.photo=!!old?.photo;toast("Photo non gardée")}}
+      await col.doc(id).set(o);
+    }
+    // aller au mois de l'opération
+    const d=new Date(o.date+"T12:00:00");cur=new Date(d.getFullYear(),d.getMonth(),1);
+    toast(editId?"Modifié ✔":"Enregistré ✔");
+    const wasEdit=!!editId;resetForm();go(wasEdit?"hist":"resume");render();
+  }catch(err){toast(err&&err.code==="quota_exceeded"?"Mémoire pleine : supprimez d'anciennes opérations":"Erreur, réessayez")}
+  $("saveBtn").disabled=false;
+}
+
+let pendingDel=null;
+function askDel(id){const o=ops.find(x=>x.id===id);if(!o)return;pendingDel=id;pendingDocDel=null;$("mTitle").textContent="Supprimer ?";
+  $("mText").textContent=(o.type==="revenu"?"Load ":"")+(o.load||o.categorie||"")+" · "+fmt(+o.montant)+" · "+frDate(o.date);
+  $("modal").classList.add("show")}
+function closeModal(){$("modal").classList.remove("show");pendingDel=null;pendingDocDel=null;$("mTitle").textContent="Supprimer ?"}
+$("mOk").onclick=async()=>{const id=pendingDel,did=pendingDocDel;closeModal();
+  if(did){const d=docs.find(x=>x.id===did);try{await db.doc("documents/"+did).delete();
+      for(const f of (d?.files||[]))assets&&assets.delete(f.id).catch(()=>{});
+      ops.filter(o=>o.docId===did).forEach(o=>col.doc(o.id).update({docId:null}).catch(()=>{}));toast("Document supprimé")}catch(e){toast("Erreur, réessayez")}return}
+  if(!id)return;
+  try{if(useLocal){ops=ops.filter(x=>x.id!==id);saveLocal();render()}else{const had=ops.find(x=>x.id===id)?.photo;await col.doc(id).delete();if(had)db.doc("recus/"+id).delete().catch(()=>{})}toast("Supprimé")}catch(e){toast("Erreur, réessayez")}};
+
+function copyReport(){
+  const m=monthOps(),lbl=cur.toLocaleDateString("fr-FR",{month:"long",year:"numeric"});
+  const inn=m.filter(o=>o.type==="revenu"),out=m.filter(isBizOut),perso=m.filter(o=>o.type==="depense"&&o.categorie===PERSO).reduce((a,o)=>a+(+o.montant||0),0);
+  const sIn=inn.reduce((a,o)=>a+(+o.montant||0),0),sOut=out.reduce((a,o)=>a+(+o.montant||0),0);
+  let t=`RAPPORT – ${lbl.toUpperCase()}\n\nREVENUS (${inn.length} loads) : ${fmt(sIn)}\n`;
+  inn.sort((a,b)=>a.date.localeCompare(b.date)).forEach(o=>t+=`  ${frDate(o.date)}  Load ${o.load||""} ${o.client||""}  ${o.miles?o.miles+" mi  ":""}${fmt(+o.montant)}\n`);
+  t+=`\nDÉPENSES : ${fmt(sOut)}\n`;
+  const by={};out.forEach(o=>by[o.categorie]=(by[o.categorie]||0)+(+o.montant||0));
+  Object.entries(by).sort((a,b)=>b[1]-a[1]).forEach(([c,v])=>t+=`  ${c} : ${fmt(v)}\n`);
+  t+=`\nBÉNÉFICE NET : ${fmt(sIn-sOut)}\n`;
+  const pdm=pdDays.filter(k=>k.startsWith(ym(cur))).length;if(pdm)t+=`Per diem : ${pdm} jours (déduction possible ${fmt(pdm*RATE_PD*PD_DED)})\n`;
+  const ow=ops.filter(unpaid);if(ow.length)t+=`Pas encore payé : ${ow.length} load(s), ${fmt(sum(ow))}\n`;if(perso)t+=`(Dépenses personnelles non comptées : ${fmt(perso)})\n`;
+  navigator.clipboard.writeText(t).then(()=>toast("Rapport copié ✔"),()=>toast("Copie impossible ici"));
+}
+
+// --- Payé / vérifié ---
+async function markPaid(id,v=true){try{if(useLocal){const o=ops.find(x=>x.id===id);o.paye=v;saveLocal();render()}else await col.doc(id).update({paye:v});toast(v?"Marqué payé ✔":"Marqué pas payé")}catch(e){toast("Erreur, réessayez")}}
+async function markOk(id){try{if(useLocal){const o=ops.find(x=>x.id===id);o.verifie=true;saveLocal();render()}else await col.doc(id).update({verifie:true});toast("Vérifié ✔")}catch(e){toast("Erreur, réessayez")}}
+
+// --- Per diem ---
+function renderPerDiem(){
+  const y=cur.getFullYear(),mo=cur.getMonth(),n=new Date(y,mo+1,0).getDate(),first=(new Date(y,mo,1).getDay()+6)%7,today=ymd(new Date());
+  let h=["L","M","M","J","V","S","D"].map(d=>`<div style="text-align:center;font-size:11px;color:var(--mute)">${d}</div>`).join("")+"<div></div>".repeat(first);
+  for(let d=1;d<=n;d++){const k=ymd(new Date(y,mo,d)),on=pdDays.includes(k);
+    h+=`<button type="button" onclick="togglePd('${k}')" style="padding:8px 0;border-radius:8px;font-size:14px;border:1px solid ${k===today?"var(--ink)":"var(--line)"};background:${on?"var(--green)":"var(--bg)"};color:${on?"#fff":"var(--ink)"}">${d}</button>`}
+  $("pdGrid").innerHTML=h;
+  const mDays=pdDays.filter(k=>k.startsWith(ym(cur))).length,yDays=pdDays.filter(k=>k.startsWith(String(y))).length;
+  $("pdTot").innerHTML=`<div class="it"><span>Ce mois : ${mDays} jour(s) × ${RATE_PD} $</span><b>${fmt(mDays*RATE_PD)}</b></div>
+   <div class="it"><span>Déduction d'impôt possible (80 %)</span><b class="pos">${fmt(mDays*RATE_PD*PD_DED)}</b></div>
+   <div class="it"><span>Année ${y} : ${yDays} jour(s)</span><b class="pos">${fmt(yDays*RATE_PD*PD_DED)}</b></div>
+   <div class="note">Taux IRS pour le transport : 80 $/jour aux États-Unis continentaux. Le jour du départ et le jour du retour comptent souvent à 75 %. Confirmez avec votre comptable.</div>`;
+}
+let pdBusy=false;
+async function togglePd(k){if(pdBusy)return;const nd=pdDays.includes(k)?pdDays.filter(x=>x!==k):[...pdDays,k].sort();pdDays=nd;renderPerDiem();
+  if(useLocal){try{localStorage.setItem("compta-pd",JSON.stringify(nd))}catch(e){}return}
+  pdBusy=true;try{await db.doc("reglages/perdiem").set({jours:nd})}catch(e){toast("Erreur, réessayez")}pdBusy=false}
+
+// --- IFTA : carburant par état, par trimestre ---
+function renderIfta(){
+  const y=cur.getFullYear(),q=Math.floor(cur.getMonth()/3);
+  $("qLabel").textContent=`${q+1}e trimestre ${y}`;
+  const f=ops.filter(o=>o.type==="depense"&&o.categorie==="Carburant (diesel)"&&o.date&&+o.date.slice(0,4)===y&&Math.floor((+o.date.slice(5,7)-1)/3)===q);
+  if(!f.length){$("ifta").innerHTML=`<div class="empty">Pas de carburant ce trimestre.</div>`;return}
+  const by={};f.forEach(o=>{const k=o.etat||"?";by[k]=by[k]||{g:0,m:0,n:0};by[k].g+=+o.gallons||0;by[k].m+=+o.montant||0;by[k].n++});
+  $("ifta").innerHTML=`<div class="list">`+Object.entries(by).sort((a,b)=>b[1].g-a[1].g).map(([k,v])=>`<div class="it"><span>${k==="?"?"⚠️ État inconnu":k} · ${v.n} plein(s)</span><span class="m">${v.g.toFixed(1)} gal · ${fmt(v.m)}</span></div>`).join("")+`</div>`+
+    (by["?"]?`<div class="note">Ajoutez l'état aux pleins « inconnus » avec Modifier dans l'Historique.</div>`:"");
+}
+
+// --- Fichier pour le comptable ---
+async function exportCSV(){
+  const y=String(cur.getFullYear());const q=v=>`"${String(v??"").replace(/"/g,'""')}"`;
+  const rows=[["Date","Type","Montant ($)","Catégorie","Load","Client / Commerce","Miles","Gallons","État","Payé","Vérifié","Note"]];
+  ops.filter(o=>o.date&&o.date.startsWith(y)).sort((a,b)=>a.date.localeCompare(b.date)).forEach(o=>rows.push([o.date,o.type==="revenu"?"Revenu":"Dépense",(+o.montant||0).toFixed(2),o.type==="revenu"?"Load":o.categorie,o.load||"",o.client||o.commerce||"",o.miles||"",o.gallons||"",o.etat||"",o.type==="revenu"?(o.paye?"oui":"non"):"",o.auto&&o.verifie===false?"non":"oui",o.description||""]));
+  const pd=pdDays.filter(k=>k.startsWith(y));rows.push([]);rows.push(["Per diem",pd.length+" jours",(pd.length*RATE_PD).toFixed(2),"Déductible 80 %",(pd.length*RATE_PD*PD_DED).toFixed(2)]);
+  const csv="\ufeff"+rows.map(r=>r.map(q).join(",")).join("\r\n");
+  if(!downloads){navigator.clipboard.writeText(csv).then(()=>toast("Copié (fichier indisponible ici)"),()=>toast("Export indisponible ici"));return}
+  try{await downloads.save({filename:`comptabilite-camion-${y}.csv`,data:csv})}catch(e){if(!(e&&e.code==="declined"))toast("Export impossible")}
+}
+
+// --- Photos de reçus ---
+let pendingPhoto=null, canImg=false, sample=null;
+async function showPhoto(id){
+  $("pBody").innerHTML="Chargement…";$("pModal").classList.add("show");
+  try{const s=await db.doc("recus/"+id).get();const img=s.exists&&s.data().img;
+    $("pBody").innerHTML=img?`<img src="${img}" style="max-width:100%;max-height:70vh;border-radius:10px">`:"Photo introuvable."}
+  catch(e){$("pBody").textContent="Photo introuvable."}
+}
+function shrink(file){return new Promise((res,rej)=>{const u=URL.createObjectURL(file),im=new Image();
+  im.onload=()=>{let w=im.naturalWidth,h=im.naturalHeight,s=Math.min(1,1000/Math.max(w,h));
+    const c=document.createElement("canvas");c.width=Math.round(w*s);c.height=Math.round(h*s);
+    c.getContext("2d").drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);
+    let q=.65,d=c.toDataURL("image/jpeg",q);while(d.length>230000&&q>.25){q-=.1;d=c.toDataURL("image/jpeg",q)}res(d)};
+  im.onerror=()=>{URL.revokeObjectURL(u);rej()};im.src=u})}
+
+async function scanReceipt(inp){
+  const file=inp.files&&inp.files[0];inp.value="";if(!file)return;
+  $("scanMsg").textContent="⏳ L'assistant lit le reçu… (quelques secondes)";
+  try{pendingPhoto=useLocal?null:await shrink(file);$("scanPrev").src=pendingPhoto;$("scanPrev").classList.remove("hidden")}catch(e){pendingPhoto=null}
+  try{
+    const r=await sample.json(
+`This is a photo of a receipt from a US truck driver (fuel, food, tolls, repairs, etc.).
+Read it and reply with ONLY one JSON object:
+{"montant": number (the TOTAL paid, in dollars), "date": "YYYY-MM-DD" or null, "categorie": one of ${JSON.stringify(CATS)}, "commerce": store/station name or "", "gallons": number of diesel gallons or 0, "description": very short note IN FRENCH (e.g. "Diesel 120 gal à 3,89 $" or "Repas"), "lisible": true/false}
+Today is ${ymd(new Date())}. If several totals appear, use the final amount actually paid.`,
+      {images:[file],modelTier:"default"});
+    if(r&&r.lisible!==false&&+r.montant>0){
+      $("fAmt").value=(+r.montant).toFixed(2);
+      if(r.date&&/^\d{4}-\d{2}-\d{2}$/.test(r.date))$("fDate").value=r.date;
+      if(CATS.includes(r.categorie))$("fCat").value=r.categorie;
+      $("fShop").value=r.commerce||"";$("fGal").value=+r.gallons||"";$("fDesc").value=r.description||"";
+      $("scanMsg").textContent="✔ Reçu lu. Vérifiez les chiffres puis appuyez sur Enregistrer.";
+    }else $("scanMsg").textContent="Le reçu n'est pas lisible. Reprenez la photo avec plus de lumière, ou tapez le montant.";
+  }catch(e){
+    $("scanMsg").textContent=e&&e.code==="not_granted"?"Clé Gemini refusée : vérifiez-la dans ⚙️ Réglages. Tapez le montant à la main.":e&&(e.code==="images_unavailable"||e.code==="image_rejected")?"Cette photo ne peut pas être lue ici. Tapez le montant à la main.":e&&e.code==="rate_limited"?"Limite gratuite atteinte pour le moment. Réessayez un peu plus tard.":"Lecture impossible. Réessayez ou tapez le montant.";
+  }
+}
+
+// --- Documents (feuilles de route, BOL, PDF) ---
+let docs=[], assets=null, downloads=null, linkDoc=null, imgMax=5;
+const KIND_IC={"Photo de pompe":"⛽","Relevé bancaire":"💳","Rate confirmation":"📑","Feuille de route":"🗺️","BOL / reçu de livraison":"✅","Reçu":"🧾","Autre":"📄"};
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement("script");s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s)})}
+let pdfReady=null;
+function pdfLib(){if(!pdfReady){const b="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+  pdfReady=loadScript(b+"pdf.worker.min.js").then(()=>loadScript(b+"pdf.min.js")).then(()=>window.pdfjsLib)}return pdfReady}
+async function pdfToImages(blob,max){
+  const lib=await pdfLib();const pdf=await lib.getDocument({data:new Uint8Array(await blob.arrayBuffer())}).promise;
+  const out=[];for(let i=1;i<=Math.min(pdf.numPages,max);i++){const p=await pdf.getPage(i);const v=p.getViewport({scale:1});
+    const s=Math.min(2,1600/Math.max(v.width,v.height));const vp=p.getViewport({scale:s});
+    const c=document.createElement("canvas");c.width=vp.width;c.height=vp.height;
+    await p.render({canvasContext:c.getContext("2d"),viewport:vp}).promise;
+    out.push({canvas:c,blob:await new Promise(r=>c.toBlob(r,"image/jpeg",.85))})}
+  return {pages:out,total:pdf.numPages}}
+const isPdf=f=>f.type==="application/pdf"||/\.pdf$/i.test(f.name||"");
+
+async function addDocument(inp){
+  const files=[...(inp.files||[])];inp.value="";if(!files.length)return;
+  if(!assets||!db){toast("Documents indisponibles ici");return}
+  $("docMsg").textContent="⏳ Envoi de "+files.length+" fichier(s)…";
+  const saved=[];
+  for(const f of files){
+    try{const type=isPdf(f)?"application/pdf":(f.type||"image/jpeg");
+      const r=await assets.upload(f,{type});saved.push({id:r.id,type,name:f.name||"document"})}
+    catch(e){toast(e&&e.code==="too_large"?"Fichier trop gros (max 20 Mo)":e&&e.code==="unsupported_type"?"Type de fichier non accepté":"Échec de l'envoi d'un fichier")}
+  }
+  if(!saved.length){$("docMsg").textContent="";return}
+  const id="doc"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  const d={created:Date.now(),date:ymd(new Date()),files:saved,info:null};
+  try{await db.doc("documents/"+id).set(d)}catch(e){$("docMsg").textContent="Erreur d'enregistrement, réessayez.";return}
+  $("docMsg").textContent="✔ Document enregistré.";
+  readDocument(id,files);
+}
+
+async function fileBlob(f){return await CC.fileBlob(f.id)}
+async function readDocument(id,localFiles){
+  const d=docs.find(x=>x.id===id)||{files:[]};
+  if(!sample){$("docMsg").textContent="Ajoutez la clé Gemini dans ⚙️ Réglages pour lire les papiers. Le fichier est gardé.";return}
+  $("docMsg").textContent="⏳ L'assistant lit le document… (jusqu'à une minute)";
+  try{
+    let srcs=localFiles||[];if(!srcs.length){for(const f of d.files)srcs.push(Object.assign(await fileBlob(f),{name:f.name,_pdf:f.type==="application/pdf"}))}
+    const imgs=[];let skipped=0;
+    for(const f of srcs){if(imgs.length>=imgMax){skipped++;continue}
+      if(f._pdf||isPdf(f)){const {pages,total}=await pdfToImages(f,imgMax-imgs.length);pages.forEach(p=>imgs.push(p.blob));skipped+=Math.max(0,total-pages.length)}
+      else imgs.push(f)}
+    const info=await sample.json(
+`These images are pages of a trucking document for a US truck driver (rate confirmation, load tender, route sheet, bill of lading, proof of delivery, lumper receipt, fuel/food receipt…), OR a photo of a fuel pump display (the driver had no receipt).
+If it is a BANK or CARD STATEMENT / screenshot of the bank app (list of card transactions): genre "Relevé bancaire", operation "plusieurs", montant 0, and fill "transactions" with EVERY money-out transaction visible (purchases, card payments, fees): {"date":"YYYY-MM-DD","montant":positive number,"commerce":merchant as written,"etat":2-letter US state if shown else "","categorie": one of the categories below — use "${PERSO}" for clearly personal/household purchases (groceries for home, clothing, streaming, transfers to family…)}. Do NOT include deposits/credits in transactions; mention their total in resume. resume in French: number of transactions, total spent, and total by main category. If a year is missing on the statement, assume the most recent past date.
+If it is a FUEL PUMP DISPLAY: genre "Photo de pompe", operation "depense", categorie "Carburant (diesel)", montant = the total SALE amount in dollars shown on the pump (not the price per gallon), gallons = the gallons shown, commerce = station brand if visible, date_operation = "", resume in French with the total, gallons and price per gallon (e.g. "Pompe : 452,30 $ pour 118,2 gallons à 3,83 $/gal. Pas de reçu.").
+Read everything carefully and reply with ONLY one JSON object:
+{"genre": one of ["Rate confirmation","Feuille de route","BOL / reçu de livraison","Reçu","Photo de pompe","Relevé bancaire","Autre"],
+ "load": load/order/trip number or "",
+ "broker": broker or company name or "",
+ "montant": total pay/rate for the driver/carrier in dollars as written (number) or 0,
+ "miles": miles ONLY if written on the document, never estimate, else 0,
+ "poids": weight as written or "",
+ "marchandise": commodity or "",
+ "ramassage": {"lieu": shipper name, "adresse": full address, "date": "YYYY-MM-DD" or "", "heure": time/window as written or ""},
+ "livraison": {"lieu": receiver name, "adresse": full address, "date": "YYYY-MM-DD" or "", "heure": ""},
+ "arrets": [other stops, short strings, may be empty],
+ "numeros": pickup/PO/BOL/reference numbers as one short string or "",
+ "contact": dispatcher/broker phone or email if written or "",
+ "instructions": important driver instructions translated into simple French or "",
+ "resume": 2 or 3 short sentences IN FRENCH explaining the document simply,
+ "operation": "revenu" if this paper shows money the driver/carrier EARNS (rate confirmation, load pay, settlement), "depense" if it is a receipt/expense the driver PAID (fuel, food, tolls, repairs, lumper, scale, parking, hotel…), or "aucun" if no amount to record (e.g. BOL with no money),
+ "date_operation": date of the payment/receipt or of the load "YYYY-MM-DD" or "",
+ "categorie": for an expense, one of ${JSON.stringify(CATS)}, else "",
+ "commerce": for an expense, store/station name or "",
+ "gallons": diesel gallons if a fuel receipt, else 0,
+ "etat": for an expense, 2-letter US state of the store/station if written (e.g. "OH"), else "",
+ "transactions": [] (only for a bank/card statement, see above)}
+For an expense, "montant" is the TOTAL actually paid.
+Copy addresses, numbers and times exactly; use "" when not written. Today is ${ymd(new Date())}.${skipped?` (Only the first pages are shown; ${skipped} page(s) not shown.)`:""}`,
+      {images:imgs,modelTier:"default"});
+    if(!info||typeof info!=="object")throw {code:"invalid_json"};
+    await db.doc("documents/"+id).update({info,date:(info.ramassage&&/^\d{4}-\d{2}-\d{2}$/.test(info.ramassage.date))?info.ramassage.date:(d.date||ymd(new Date()))});
+    const rec=await autoRecord(id,info);
+    $("docMsg").textContent="✔ Document lu. "+rec+(skipped?" (Seules les "+imgMax+" premières pages ont été lues.)":"");
+  }catch(e){
+    $("docMsg").textContent=e&&e.code==="not_granted"?"Clé Gemini refusée : vérifiez-la dans ⚙️ Réglages. Le document est quand même gardé.":e&&e.code==="rate_limited"?"Trop de demandes, réessayez dans un moment avec « Relire ».":"L'assistant n'a pas pu lire le document. Le fichier est gardé ; essayez « Relire » plus tard.";
+  }
+}
+
+// Enregistre automatiquement le montant lu sur le papier (sans rien taper)
+async function autoRecord(id,i){
+  if(i.genre==="Relevé bancaire"||i.operation==="plusieurs")return recordStatement(id,i);
+  const t=i.operation,amt=Math.round((+i.montant||0)*100)/100;
+  if(!(t==="revenu"||t==="depense")||!(amt>0))return "Aucun montant à enregistrer sur ce papier.";
+  const okDate=s=>s&&/^\d{4}-\d{2}-\d{2}$/.test(s);
+  const date=okDate(i.date_operation)?i.date_operation:okDate(i.livraison?.date)?i.livraison.date:okDate(i.ramassage?.date)?i.ramassage.date:ymd(new Date());
+  // ne pas créer de doublon : même papier, ou même numéro de load déjà enregistré
+  let ex=ops.find(o=>o.docId===id);
+  if(!ex&&t==="depense")ex=ops.find(o=>o.type==="depense"&&o.date===date&&Math.abs((+o.montant||0)-amt)<0.01);
+  if(!ex&&t==="revenu"&&i.load)ex=ops.find(o=>o.type==="revenu"&&o.load&&String(o.load)===String(i.load));
+  const o=ex?{...ex}:{created:Date.now()};delete o.id;
+  Object.assign(o,{type:t,montant:amt,date,docId:id,auto:true,verifie:false});if(t==="revenu"&&o.paye===undefined)o.paye=false;
+  if(t==="revenu"){o.load=i.load||o.load||"";o.client=i.broker||o.client||"";o.miles=+i.miles||o.miles||0;
+    const a=i.ramassage?.adresse||i.ramassage?.lieu||"",b=i.livraison?.adresse||i.livraison?.lieu||"";o.description=(a||b)?`${a} → ${b}`:(o.description||"")}
+  else{o.categorie=CATS.includes(i.categorie)?i.categorie:"Autre";o.commerce=i.commerce||"";o.gallons=+i.gallons||0;o.etat=(i.etat||"").toUpperCase().slice(0,2);
+    o.description=i.genre==="Photo de pompe"?"Photo de la pompe (pas de reçu)"+(o.gallons?` · ${(amt/o.gallons).toFixed(3)} $/gal`:""):(o.description||(i.resume||"").slice(0,120))}
+  const opId=ex?ex.id:"op_"+id;
+  await col.doc(opId).set(o);
+  const d=new Date(date+"T12:00:00");cur=new Date(d.getFullYear(),d.getMonth(),1);render();
+  return (t==="revenu"?"💵 Revenu ":"🧾 Dépense ")+fmt(amt)+(ex?" mis à jour":" enregistré")+" automatiquement.";
+}
+
+// Relevé de carte bancaire : une dépense par transaction, sans doublons
+async function recordStatement(id,i){
+  const tx=Array.isArray(i.transactions)?i.transactions:[];
+  const okDate=s=>s&&/^\d{4}-\d{2}-\d{2}$/.test(s);
+  let added=0,dup=0,tot=0,totBiz=0,last=null;
+  for(const [n,x] of tx.entries()){
+    const amt=Math.round(Math.abs(+x.montant||0)*100)/100;if(!(amt>0)||!okDate(x.date))continue;
+    const opId="op_"+id+"_"+n;
+    // déjà là ? (même date + même montant, venant d'un reçu, d'une photo de pompe ou d'un autre relevé)
+    const same=ops.find(o=>o.type==="depense"&&o.id!==opId&&o.date===x.date&&Math.abs((+o.montant||0)-amt)<0.01);
+    if(same){dup++;continue}
+    const cat=CATS.includes(x.categorie)?x.categorie:"Autre";
+    await col.doc(opId).set({type:"depense",montant:amt,date:x.date,categorie:cat,commerce:x.commerce||"",gallons:0,etat:(x.etat||"").toUpperCase().slice(0,2),description:"Carte bancaire",docId:id,auto:true,verifie:false,created:Date.now()+n});
+    added++;tot+=amt;if(cat!==PERSO)totBiz+=amt;last=x.date;
+  }
+  if(last){const d=new Date(last+"T12:00:00");cur=new Date(d.getFullYear(),d.getMonth(),1);render()}
+  if(!added&&!dup)return "Aucune dépense trouvée sur ce relevé.";
+  return `💳 ${added} dépense(s) ajoutée(s) : ${fmt(tot)} (dont ${fmt(totBiz)} pour le camion).`+(dup?` ${dup} déjà enregistrée(s), pas comptée(s) deux fois.`:"");
+}
+
+function place(p){if(!p)return "";return [p.lieu,p.adresse].filter(Boolean).join(", ")}
+function when(p){if(!p)return "";return [p.date?frDate(p.date):"",p.heure].filter(Boolean).join(" ")}
+function renderDocs(){
+  const el=$("docList");if(!el)return;
+  const m=monthOps().filter(o=>o.docId),ti=m.filter(o=>o.type==="revenu").reduce((a,o)=>a+(+o.montant||0),0),to=m.filter(isBizOut).reduce((a,o)=>a+(+o.montant||0),0);
+  $("docTot").innerHTML=`<h2>Total des papiers · ${cur.toLocaleDateString("fr-FR",{month:"long",year:"numeric"})}</h2><div class="list">
+    <div class="it"><span>Revenus lus sur les papiers</span><span class="m pos">${fmt(ti)}</span></div>
+    <div class="it"><span>Dépenses lues sur les reçus</span><span class="m neg">${fmt(to)}</span></div>
+    <div class="it"><span><b>Reste (bénéfice)</b></span><span class="m ${ti-to>=0?"pos":"neg"}">${fmt(ti-to)}</span></div></div>
+    <div class="row" style="margin-top:8px"><button class="mini" onclick="shiftMonth(-1)">◀ Mois</button><button class="mini" onclick="shiftMonth(1)">Mois ▶</button></div>`;
+  if(!docs.length){el.innerHTML=`<div class="card"><div class="empty">Aucun document pour l'instant.</div></div>`;return}
+  el.innerHTML=[...docs].sort((a,b)=>(b.created||0)-(a.created||0)).map(d=>{
+    const i=d.info;const g=i?.genre||"Document";
+    const lines=i?[
+      i.ramassage&&place(i.ramassage)?`<div class="d">📍 <b>Prendre :</b> ${esc(place(i.ramassage))}${when(i.ramassage)?" · "+esc(when(i.ramassage)):""}</div>`:"",
+      i.livraison&&place(i.livraison)?`<div class="d">🏁 <b>Déposer :</b> ${esc(place(i.livraison))}${when(i.livraison)?" · "+esc(when(i.livraison)):""}</div>`:"",
+      i.genre==="Relevé bancaire"?`<div class="d">💳 ${ops.filter(o=>o.docId===d.id).length} dépense(s) · ${fmt(ops.filter(o=>o.docId===d.id).reduce((a,o)=>a+(+o.montant||0),0))}</div>`:"",
+      +i.montant?`<div class="d">💵 ${fmt(+i.montant)}${+i.miles?" · "+i.miles+" mi":""}</div>`:""].join(""):`<div class="d">Pas encore lu.</div>`;
+    const op=ops.find(o=>o.docId===d.id);
+    return `<div class="card"><div class="t" style="font-weight:600">${KIND_IC[g]||"📄"} ${esc(g)}${i?.load?" · #"+esc(i.load):""}${i?.broker?" · "+esc(i.broker):""}</div>
+      <div class="d" style="color:var(--mute);font-size:13px">${frDate(d.date||ymd(new Date(d.created)))} · ${d.files.length} fichier(s)${op?" · ✔ load enregistré":""}</div>${lines}
+      <div class="acts" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
+        <button class="mini" onclick="openDoc('${d.id}')">👁 Voir</button>
+        <button class="mini" onclick="shareDoc('${d.id}')">📤 Envoyer</button>
+        ${i&&!op&&!["Reçu","Photo de pompe","Relevé bancaire"].includes(i.genre)?`<button class="mini" onclick="docToLoad('${d.id}')">💵 Créer le load</button>`:""}
+        <button class="mini" onclick="readDocument('${d.id}')">🔄 Relire</button>
+        <button class="mini" onclick="askDelDoc('${d.id}')">🗑</button>
+      </div></div>`}).join("");
+}
+
+async function openDoc(id){
+  const d=docs.find(x=>x.id===id);if(!d)return;const i=d.info;
+  $("dTitle").textContent=(i?.genre||"Document")+(i?.load?" #"+i.load:"");
+  const row=(k,v)=>v?`<div class="it"><span style="color:var(--mute)">${k}</span><span style="text-align:right">${esc(v)}</span></div>`:"";
+  let h=i?`<div class="msg a" style="max-width:100%">${esc(i.resume||"")}</div><div class="list">
+    ${row("Broker / compagnie",i.broker)}${row("📍 Prendre",place(i.ramassage))}${row("Quand",when(i.ramassage))}
+    ${row("🏁 Déposer",place(i.livraison))}${row("Quand",when(i.livraison))}
+    ${row("Autres arrêts",(i.arrets||[]).join(" | "))}${row("Paie",+i.montant?fmt(+i.montant):"")}${row("Miles",+i.miles?i.miles+" mi":"")}
+    ${row("Poids",i.poids)}${row("Marchandise",i.marchandise)}${row("Numéros",i.numeros)}${row("Contact",i.contact)}${row("Instructions",i.instructions)}</div>`
+    :`<div class="note">Pas encore lu.</div>`;
+  h+=`<div id="dFiles" style="margin-top:12px"></div>`;
+  $("dBody").innerHTML=h;$("dModal").classList.add("show");
+  const box=$("dFiles");
+  for(const [n,f] of d.files.entries()){
+    const w=document.createElement("div");w.style.margin="12px 0";
+    w.innerHTML=`<div class="row between"><span class="note" style="margin:0">Fichier ${n+1}${f.type==="application/pdf"?" (PDF)":""}</span><button class="mini" data-i="${n}">📤 Envoyer</button></div>`;
+    w.querySelector("button").onclick=()=>shareFile(f,d);
+    box.appendChild(w);
+    if(f.type==="application/pdf"){
+      const m=document.createElement("div");m.className="note";m.textContent="Chargement du PDF…";w.appendChild(m);
+      try{const {pages,total}=await pdfToImages(await fileBlob(f),15);m.textContent=total>15?`(15 premières pages sur ${total})`:"";
+        pages.forEach(p=>{p.canvas.style.cssText="width:100%;border:1px solid var(--line);border-radius:8px;margin-top:6px";w.appendChild(p.canvas)})}
+      catch(e){m.textContent="Impossible d'afficher ce PDF ici. Utilisez 📤 Envoyer pour l'ouvrir."}
+    }else{const im=document.createElement("img");CC.fileUrl(f.id).then(u=>{if(u)im.src=u});im.style.cssText="width:100%;border-radius:8px;margin-top:6px";w.appendChild(im)}
+  }
+}
+
+function safeName(d,f,n){const i=d.info||{};const base=((i.genre||"document")+(i.load?"-"+i.load:"")).replace(/[^\w\-]+/g,"_");
+  const ext=f.type==="application/pdf"?"pdf":(f.type.split("/")[1]||"jpg").replace("jpeg","jpg");return base+(n?"-"+n:"")+"."+ext}
+async function shareFile(f,d,n){
+  if(!downloads){toast("Envoi indisponible ici");return}
+  try{const b=await fileBlob(f);await downloads.save({filename:safeName(d,f,n),data:b})}
+  catch(e){if(!(e&&e.code==="declined"))toast("Envoi impossible")}
+}
+async function shareDoc(id){const d=docs.find(x=>x.id===id);if(!d)return;
+  if(d.files.length===1)return shareFile(d.files[0],d);openDoc(id)}
+
+function docToLoad(id){
+  const d=docs.find(x=>x.id===id);if(!d||!d.info)return;const i=d.info;
+  resetForm();setType("revenu");linkDoc=id;
+  if(+i.montant)$("fAmt").value=(+i.montant).toFixed(2);
+  const dt=i.livraison?.date||i.ramassage?.date;if(dt&&/^\d{4}-\d{2}-\d{2}$/.test(dt))$("fDate").value=dt;
+  $("fLoad").value=i.load||"";$("fClient").value=i.broker||"";$("fMiles").value=+i.miles||"";
+  const a=i.ramassage?.adresse||i.ramassage?.lieu||"",b=i.livraison?.adresse||i.livraison?.lieu||"";
+  $("fDesc").value=(a||b)?`${a} → ${b}`:"";
+  go("add");toast("Vérifiez puis Enregistrer");
+}
+
+let pendingDocDel=null;
+function askDelDoc(id){pendingDocDel=id;pendingDel=null;$("mTitle").textContent="Supprimer ce document ?";$("mText").textContent="Les photos et PDF seront effacés pour toujours.";$("modal").classList.add("show")}
+
+// --- Assistant ---
+const SUGG=["Combien j'ai gagné ce mois-ci ?","Combien j'ai dépensé en carburant ce mois-ci ?","Quel est mon bénéfice cette année ?","Prix moyen du diesel par gallon ?","Combien je gagne par mile ?","Mes dépenses de repas cette semaine ?"];
+let turns=[], aiBusy=false;
+function addMsg(role,text){const d=document.createElement("div");d.className="msg "+(role==="user"?"u":"a");d.textContent=text;$("chat").appendChild(d);d.scrollIntoView({block:"end"});return d}
+function dataText(){
+  const rows=[...ops].sort((a,b)=>a.date.localeCompare(b.date)).slice(-1500).map(o=>o.type==="revenu"
+    ?`${o.date};REVENU;${o.montant};load ${o.load||"-"};client ${o.client||"-"};${o.miles||0} miles;${o.paye?"payé":"PAS ENCORE PAYÉ"};${o.description||""}`
+    :`${o.date};DEPENSE;${o.montant};${o.categorie};${o.commerce||""};${o.gallons?o.gallons+" gal":""};${o.etat||""};${o.description||""}`);
+  const dl=[...docs].sort((a,b)=>(a.created||0)-(b.created||0)).slice(-200).filter(d=>d.info).map(d=>{const i=d.info;
+    return `${d.date};${i.genre};load ${i.load||"-"};${i.broker||""};PRENDRE: ${place(i.ramassage)} ${when(i.ramassage)};DÉPOSER: ${place(i.livraison)} ${when(i.livraison)};${+i.montant?i.montant+" $":""};${+i.miles?i.miles+" mi":""};${i.poids||""};${i.numeros||""};${i.contact||""};${i.instructions||""}`});
+  return (rows.length?rows.join("\n"):"(aucune opération enregistrée)")+`\n\nPER DIEM (jours sur la route, ${RATE_PD} $/jour, 80 % déductible) : ${pdDays.join(", ")||"(aucun)"}`+"\n\nPAPIERS SCANNÉS (feuilles de route, rate confirmations, BOL, reçus) :\n"+(dl.length?dl.join("\n"):"(aucun)");
+}
+async function ask(e,q){
+  e&&e.preventDefault();q=(q||$("aiQ").value).trim();if(!q||aiBusy)return;
+  if(!sample){toast("Assistant indisponible");return}
+  aiBusy=true;$("aiBtn").disabled=true;$("aiQ").value="";$("sugg").innerHTML="";
+  addMsg("user",q);const bubble=addMsg("assistant","Je réfléchis…");
+  const rules=`Tu es l'assistant comptable d'un chauffeur de camion aux États-Unis. Il parle français (pas anglais) et lit sur un iPhone.
+Réponds TOUJOURS en français simple, court et clair, sans tableaux Markdown ni symboles ** ou #. Montants en dollars ($).
+Quand tu fais un calcul, montre-le en une ou deux lignes (ex. 450 $ + 380 $ = 830 $). Vérifie bien tes additions.
+Les dépenses de catégorie « Personnel (pas le camion) » ne comptent pas dans le bénéfice.
+Utilise UNIQUEMENT les données ci-dessous. Si l'information manque, dis-le gentiment et dis quoi enregistrer dans l'application.
+Tu peux aussi donner des conseils pratiques (économiser sur le carburant, garder ses reçus pour les impôts), mais pour les impôts rappelle de confirmer avec un comptable.
+Aujourd'hui : ${ymd(new Date())}.
+DONNÉES (opérations : date;type;montant $;détails, puis les papiers scannés) :
+${dataText()}`;
+  turns.push({role:"user",content:q});
+  const recent=turns.slice(-10);
+  try{
+    const {text}=await sample([{role:"user",content:rules},...recent],{cache:false,onText:({text})=>{bubble.textContent=text}});
+    bubble.textContent=text;turns.push({role:"assistant",content:text});
+  }catch(err){
+    turns.pop();
+    bubble.textContent=err&&err.code==="not_granted"?"Clé Gemini refusée : vérifiez-la dans ⚙️ Réglages.":err&&err.code==="rate_limited"?"Limite gratuite atteinte pour le moment. Réessayez un peu plus tard.":(err&&err.text?err.text+"\n(interrompu)":"Désolé, ça n'a pas marché. Réessayez.");
+  }
+  aiBusy=false;$("aiBtn").disabled=false;
+}
+$("sugg").innerHTML=SUGG.map(s=>`<button class="chip" type="button">${s}</button>`).join("");
+$("sugg").querySelectorAll(".chip").forEach(b=>b.onclick=()=>ask(null,b.textContent));
+
+// --- Stockage ---
+function loadLocal(){try{ops=JSON.parse(localStorage.getItem(LSKEY)||"[]")}catch(e){ops=[]}}
+function saveLocal(){try{localStorage.setItem(LSKEY,JSON.stringify(ops))}catch(e){}}
+function goLocal(msg){useLocal=true;loadLocal();try{pdDays=JSON.parse(localStorage.getItem("compta-pd")||"[]")}catch(e){}$("status").textContent=msg;render()}
+
+render();
+(async()=>{
+  try{sample=window.claude&&await window.claude.use("sample")}catch(e){sample=null}
+  if(sample){try{const l=await sample.limits();canImg=!!l.images;if(l.images)imgMax=Math.min(8,l.images.maxCount||5)}catch(e){}}
+  try{assets=window.claude&&await window.claude.use("assets")}catch(e){assets=null}
+  try{downloads=window.claude&&await window.claude.use("downloads")}catch(e){downloads=null}
+  if(!sample){$("aiOff").classList.remove("hidden");$("aiForm").classList.add("hidden")}
+  if(!assets){$("docOff").classList.remove("hidden")}
+})();
+(async()=>{
+  try{db=window.claude&&await window.claude.use("db")}catch(e){db=null}
+  if(!db){goLocal("enregistré sur cet appareil seulement");return}
+  col=db.collection("operations");
+  db.doc("reglages/perdiem").onSnapshot(s=>{if(!pdBusy){pdDays=(s.exists&&s.data().jours)||[];render()}},()=>{});
+  db.collection("documents").onSnapshot(s=>{docs=s.docs.map(d=>({...d.data(),id:d.id}));render()},()=>{});
+  const timer=setTimeout(()=>{$("status").textContent="connexion lente… les données arrivent"},10000);
+  col.onSnapshot(snap=>{
+    ops=snap.docs.map(d=>({...d.data(),id:d.id}));
+    if(!snap.metadata.fromCache){clearTimeout(timer);$("status").textContent="✔ sauvegardé en ligne"}
+    render();
+  },err=>{clearTimeout(timer);goLocal("enregistré sur cet appareil seulement")});
+})();
+</script>
+</body>
+</html>
