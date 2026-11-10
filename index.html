@@ -25,6 +25,7 @@
   html,body { margin:0; height:100%; overflow:hidden; font-family:-apple-system,"SF Pro Rounded",Segoe UI,Roboto,Arial,sans-serif; background:#000; color:var(--texte); }
   #map { position:absolute; inset:0; }
   body.nuit .leaflet-container { background:#1b2229; }
+  body.nuit .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.6); }
   .hidden { display:none !important; }
   button { font-family:inherit; cursor:pointer; border:none; }
 
@@ -272,7 +273,7 @@
       ⚠️ Les routes viennent d'OpenStreetMap. Les hauteurs de ponts, limites de poids et limites de vitesse peuvent manquer ou être fausses.
       Regardez toujours les panneaux. C'est vous le chauffeur.<br><br>
       Vos signalements (police, accident…) restent seulement sur ce téléphone.<br><br>
-      Version 1.5 · 9 nov. 2026
+      Version 1.6 · 9 nov. 2026
     </div>
   </div>
 </div>
@@ -409,7 +410,6 @@
   // ================= Carte =================
   const map = L.map('map', { zoomControl:false, attributionControl:true }).setView([39.96, -82.99], 11);
   const dayTiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap' });
-  const nightTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom:19, subdomains:'abcd', attribution:'© OpenStreetMap © CARTO' });
   let isNight = null;
   function applyNight(){
     const mode = store.get('night', 'auto');
@@ -418,7 +418,7 @@
     if (night === isNight) return;
     isNight = night;
     document.body.classList.toggle('nuit', night);
-    if (night) { map.removeLayer(dayTiles); nightTiles.addTo(map); } else { map.removeLayer(nightTiles); dayTiles.addTo(map); }
+    if (!map.hasLayer(dayTiles)) dayTiles.addTo(map);   // la nuit : même carte, assombrie par le style (classe « nuit »)
   }
   applyNight(); setInterval(applyNight, 5 * 60 * 1000);
 
@@ -443,7 +443,7 @@
                        iconSize:[60,60], iconAnchor:[30,30] });
   }
   const emo = e => L.divIcon({ className:'poi', html:e, iconSize:[28,28], iconAnchor:[14,14] });
-  let meMarker = null, myPos = null, myHeading = null, mySpeed = null, lastIconHeading = -999;
+  let meMarker = null, myPos = null, myHeading = null, mySpeed = null, lastIconHeading = null;
   const poiLayer = L.layerGroup().addTo(map);
   const reportLayer = L.layerGroup().addTo(map);
   let routeLayers = [], startMarker = null, endMarker = null;
@@ -493,7 +493,7 @@
       if (!nav && !routes.length) map.setView(myPos, 15);
     } else {
       meMarker.setLatLng(myPos);
-      if (myHeading != null && Math.min(Math.abs(myHeading - lastIconHeading), 360 - Math.abs(myHeading - lastIconHeading)) > 6) { meMarker.setIcon(meIconFor(myHeading)); lastIconHeading = myHeading; }
+      if (myHeading != null && (lastIconHeading == null || Math.min(Math.abs(myHeading - lastIconHeading), 360 - Math.abs(myHeading - lastIconHeading)) > 6)) { meMarker.setIcon(meIconFor(myHeading)); lastIconHeading = myHeading; }
     }
     if (nav) navUpdate();
   }
