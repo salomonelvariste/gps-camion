@@ -153,6 +153,11 @@
   <div id="searchPill">🔍 <b>Où allez-vous ?</b></div>
 </div>
 
+<!-- Reprendre un trajet (si l'application a été fermée) -->
+<div id="resumeBox" class="hidden" style="position:absolute;z-index:1000;left:12px;right:12px;top:calc(var(--safeT) + 76px)">
+  <button class="btnBig bleu" id="btnResume" style="font-size:16px;padding:13px;box-shadow:0 3px 10px rgba(0,0,0,.28)"></button>
+</div>
+
 <!-- Boutons flottants -->
 <div id="fabR">
   <button class="round" id="btnCenter" aria-label="Me centrer">◎</button>
@@ -266,13 +271,17 @@
     <div class="check"><input type="checkbox" id="optWeigh" checked> <span>⚖️ Stations de pesée</span></div>
     <div class="check"><input type="checkbox" id="optPolice" checked> <span>🚓 Postes de police (sur la carte)</span></div>
     <div class="check"><input type="checkbox" id="optSpeed" checked> <span>🔔 Avertir si je dépasse la limite de vitesse</span></div>
+    <label>Hors ligne</label>
+    <div class="check"><input type="checkbox" id="optOffline" checked> <span>📥 Télécharger la carte du trajet au départ (pour continuer sans réseau)</span></div>
     <button class="btnBig orange" id="btnSaveSet">Enregistrer</button>
     <div id="setMsg"></div>
+    <div class="note" id="storeInfo"></div>
+    <button class="btnBig grisB" id="btnClearMaps" style="margin-top:8px;font-size:16px">🗑️ Effacer les cartes téléchargées</button>
     <div class="note">
       ⚠️ Les routes viennent d'OpenStreetMap. Les hauteurs de ponts, limites de poids et limites de vitesse peuvent manquer ou être fausses.
       Regardez toujours les panneaux. C'est vous le chauffeur.<br><br>
       Vos signalements (police, accident…) restent seulement sur ce téléphone.<br><br>
-      Version 2.0 bêta · 9 nov. 2026
+      Version 2.1 bêta · 9 nov. 2026
     </div>
   </div>
 </div>
@@ -307,7 +316,7 @@
 </div>
 <div id="navBottom" class="hidden">
   <button id="btnMute">🔊</button>
-  <div class="eta"><div id="stEta">—</div><div id="stInfo">—</div></div>
+  <div class="eta"><div id="stEta">—</div><div id="stInfo">—</div><div id="stDl" class="hidden" style="font-size:13px;font-weight:700;margin-top:3px"></div></div>
   <button id="btnStop" class="rouge">✕</button>
 </div>
 <div id="alertBox" class="hidden"></div>
@@ -517,6 +526,7 @@
     views.forEach(v => v === id ? show(v) : hide(v));
     const homeUI = !id && !nav;
     $('topBar').classList.toggle('hidden', !homeUI);
+    if (!homeUI) hide('resumeBox');
     placeFabs();
   }
   function placeFabs(){
@@ -566,7 +576,7 @@
 
   // ================= Réglages & camion =================
   const defTruck = { hFt:13, hIn:6, wFt:8, wIn:6, lFt:72, wt:80000, ax:'', hazmat:false, avoidTolls:false };
-  const defOpts = { cam:true, weigh:true, police:true, speed:true };
+  const defOpts = { cam:true, weigh:true, police:true, speed:true, offline:true };
   function loadTruck(){
     const t = Object.assign({}, defTruck, store.get('truck', {}));
     ['hFt','hIn','wFt','wIn','lFt','wt','ax'].forEach(k => $(k).value = t[k]);
@@ -581,13 +591,14 @@
   function loadSet(){
     $('apiKey').value = store.get('key', '');
     const o = Object.assign({}, defOpts, store.get('opts', {}));
-    $('optCam').checked = o.cam; $('optWeigh').checked = o.weigh; $('optPolice').checked = o.police; $('optSpeed').checked = o.speed;
+    $('optCam').checked = o.cam; $('optWeigh').checked = o.weigh; $('optPolice').checked = o.police; $('optSpeed').checked = o.speed; $('optOffline').checked = o.offline;
+    showStorage();
     $('nightMode').value = store.get('night', 'auto');
   }
   $('showKey').onchange = () => $('apiKey').type = $('showKey').checked ? 'text' : 'password';
   $('btnSaveSet').onclick = () => {
     store.set('key', $('apiKey').value.trim());
-    store.set('opts', { cam:$('optCam').checked, weigh:$('optWeigh').checked, police:$('optPolice').checked, speed:$('optSpeed').checked });
+    store.set('opts', { cam:$('optCam').checked, weigh:$('optWeigh').checked, police:$('optPolice').checked, speed:$('optSpeed').checked, offline:$('optOffline').checked });
     store.set('night', $('nightMode').value); applyNight();
     $('showKey').checked = false; $('apiKey').type = 'password';
     msg('setMsg', 'Réglages enregistrés ✔', true);
@@ -892,6 +903,7 @@
   let poiReq = 0;
   async function loadPois(route){
     const my = ++poiReq;
+    const oldPois = pois;
     pois = []; drawPois();
     const o = opts();
     if (!o.cam && !o.weigh && !o.police) return;
@@ -929,7 +941,7 @@
       const c = { cam:0, redlight:0, weigh:0, police:0 }; pois.forEach(p => c[p.type]++);
       $('poiInfo').textContent = 'Sur cette route : 📸 ' + (c.cam + c.redlight) + ' radar(s) · ⚖️ ' + c.weigh + ' pesée(s) · 🚓 ' + c.police + ' poste(s) de police';
     } catch(e){
-      if (my === poiReq) $('poiInfo').textContent = 'Radars et pesées non chargés (service occupé). La route marche quand même.';
+      if (my === poiReq) { pois = oldPois; drawPois(); $('poiInfo').textContent = 'Radars et pesées non chargés (réseau ou service occupé). La route marche quand même.'; }
     }
     placeFabs();
   }
@@ -1002,10 +1014,12 @@
     speak('C\'est parti. Bonne route.');
     showAlert('Gardez l\'application ouverte et l\'écran allumé pendant le trajet (téléphone branché).', 6000, '#0a84c6');
     nav.follow = true; anim.zoom = null; anim.still = false;
+    saveTrip();
+    if (opts().offline) downloadRoute(routes[chosen]);
     if (myPos) { const sn = navUpdate(); setTarget(sn ? sn.pos : myPos, sn ? sn.bearing : myHeading); }
   };
   $('btnStop').onclick = () => {
-    nav = null;
+    nav = null; dl.id++; store.set('trip', null); hide('stDl');
     try { if (wakeLock) wakeLock.release(); } catch(e){}
     ['navTop','navBottom','navThen','alertBox','speedBox'].forEach(hide);
     $('navTop').style.background = '';
@@ -1163,6 +1177,13 @@
 
   async function recalc(){
     const n = nav; n.recalcing = true;
+    if (!navigator.onLine) {
+      $('navTop').style.background = '#e07b00';
+      $('navArrow').textContent = '📴'; $('navDist').textContent = 'Pas de réseau'; $('navText').textContent = 'Revenez sur la route violette. Nouvelle route dès le retour du réseau.';
+      if (!n.offSaid) { speak('Pas de réseau. Revenez sur la route violette.'); n.offSaid = true; }
+      setTimeout(() => { if (nav === n) { n.recalcing = false; $('navTop').style.background = ''; } }, 5000);
+      return;
+    }
     $('navTop').style.background = '#e07b00';
     $('navArrow').textContent = '↻'; $('navDist').textContent = 'Nouvelle route…'; $('navText').textContent = 'Recherche du meilleur chemin';
     speak('Nouvelle route en calcul.');
@@ -1176,12 +1197,130 @@
       drawRoutes();
       const sn = navUpdate(); if (sn) setTarget(sn.pos, sn.bearing);
       loadPois(routes[0]);
+      saveTrip();
+      if (opts().offline) downloadRoute(routes[0]);
     } catch(e){
       $('navTop').style.background = '';
       $('navText').textContent = 'Impossible de recalculer : ' + e.message;
       setTimeout(() => { if (nav) nav.recalcing = false; }, 8000);
     }
   }
+
+  // ================= Hors ligne =================
+  // 1) Copie de l'application dans le téléphone (pour l'ouvrir sans réseau)
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e){}
+
+  // 2) Trajet gardé dans le téléphone (pour le reprendre si l'application se ferme)
+  function saveTrip(){
+    if (!nav || !endPt) return;
+    store.set('trip', { t: Date.now(), endPt, route: nav.route, pois: pois.slice(0, 600) });
+  }
+  setInterval(() => { if (nav && pois.length) saveTrip(); }, 60000);
+  function offerResume(){
+    const tr = store.get('trip', null);
+    if (!tr || !tr.route || Date.now() - tr.t > 24 * 3600e3) { hide('resumeBox'); return; }
+    $('btnResume').textContent = '▶ Reprendre le trajet vers ' + (tr.endPt.label || 'votre destination');
+    show('resumeBox');
+  }
+  $('btnResume').onclick = () => {
+    const tr = store.get('trip', null); hide('resumeBox');
+    if (!tr) return;
+    endPt = tr.endPt; routes = [tr.route]; chosen = 0; pois = tr.pois || [];
+    if (endMarker) endMarker.remove();
+    endMarker = addMarker(endPt.lat, endPt.lng, '🏁');
+    drawPois(); setRouteData();
+    $('btnStart').onclick();
+  };
+
+  // 3) Carte du trajet téléchargée d'avance (bande autour de la route)
+  const dl = { id: 0 };
+  const lon2x = (lon, z) => (lon + 180) / 360 * Math.pow(2, z);
+  const lat2y = (lat, z) => { const r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z); };
+  function routeTiles(latlngs, z){
+    const set = new Set();
+    const n = Math.pow(2, z);
+    let prev = null;
+    const add = (fx, fy) => {
+      const x = Math.floor(fx), y = Math.floor(fy);
+      const xs = [x], ys = [y];
+      if (fx - x < 0.3) xs.push(x - 1); if (fx - x > 0.7) xs.push(x + 1);
+      if (fy - y < 0.3) ys.push(y - 1); if (fy - y > 0.7) ys.push(y + 1);
+      xs.forEach(a => ys.forEach(b => { if (a >= 0 && b >= 0 && a < n && b < n) set.add(z + '/' + a + '/' + b); }));
+    };
+    for (const p of latlngs) {
+      const fx = lon2x(p[1], z), fy = lat2y(p[0], z);
+      if (prev) {   // remplir entre deux points éloignés
+        const steps = Math.ceil(Math.max(Math.abs(fx - prev[0]), Math.abs(fy - prev[1])) / 0.25);
+        for (let i = 1; i < steps; i++) add(prev[0] + (fx - prev[0]) * i / steps, prev[1] + (fy - prev[1]) * i / steps);
+      }
+      add(fx, fy); prev = [fx, fy];
+    }
+    return [...set];
+  }
+  function tileTemplate(){
+    try {
+      const st = map.getStyle();
+      for (const id in st.sources) {
+        const src = map.getSource(id);
+        if (src && src.type === 'vector' && src.tiles && src.tiles.length) return src.tiles[0];
+      }
+    } catch(e){}
+    return null;
+  }
+  function glyphUrls(){
+    try {
+      const st = map.getStyle(); if (!st.glyphs) return [];
+      const stacks = new Set();
+      st.layers.forEach(l => { const f = l.layout && l.layout['text-font']; if (Array.isArray(f) && f.every(x => typeof x === 'string')) stacks.add(f.join(',')); });
+      const out = [];
+      stacks.forEach(fs => ['0-255', '256-511', '8192-8447'].forEach(r => out.push(st.glyphs.replace('{fontstack}', encodeURIComponent(fs)).replace('{range}', r))));
+      return out;
+    } catch(e){ return []; }
+  }
+  async function downloadRoute(route){
+    const my = ++dl.id;
+    const tpl = tileTemplate();
+    if (!tpl || !navigator.onLine) { $('stDl').textContent = '📴 Carte hors ligne non téléchargée (pas de réseau)'; show('stDl'); return; }
+    let urls = [];
+    [[14, 1], [12, 1], [10, 1], [8, 1]].forEach(([z]) => routeTiles(route.latlngs, z).forEach(t => {
+      const [zz, x, y] = t.split('/');
+      urls.push(tpl.replace('{z}', zz).replace('{x}', x).replace('{y}', y));
+    }));
+    urls = urls.concat(glyphUrls());
+    let done = 0, failed = 0;
+    show('stDl');
+    const upd = () => { if (my === dl.id) $('stDl').textContent = '📥 Carte hors ligne : ' + Math.round(done / urls.length * 100) + ' %'; };
+    upd();
+    let i = 0;
+    async function worker(){
+      while (i < urls.length && my === dl.id) {
+        const u = urls[i++];
+        try { const r = await fetch(u, { mode:'cors' }); if (!r.ok) failed++; } catch(e){ failed++; }
+        done++; if (done % 10 === 0) upd();
+      }
+    }
+    await Promise.all([1, 2, 3, 4, 5, 6].map(worker));
+    if (my !== dl.id) return;
+    $('stDl').textContent = failed > urls.length * 0.1
+      ? '⚠️ Carte hors ligne incomplète (' + Math.round((done - failed) / urls.length * 100) + ' %)'
+      : '✔ Carte du trajet disponible hors ligne';
+  }
+  async function showStorage(){
+    try {
+      if (!navigator.storage || !navigator.storage.estimate) return;
+      const e = await navigator.storage.estimate();
+      $('storeInfo').textContent = 'Cartes et données gardées sur ce téléphone : ' + Math.round((e.usage || 0) / 1048576) + ' Mo';
+    } catch(e){}
+  }
+  $('btnClearMaps').onclick = async () => {
+    try { for (const k of await caches.keys()) if (k.startsWith('gps-map-')) await caches.delete(k); } catch(e){}
+    msg('setMsg', 'Cartes téléchargées effacées ✔', true); showStorage();
+  };
+
+  // 4) Indicateur réseau pendant le trajet
+  window.addEventListener('offline', () => { if (nav) { show('stDl'); $('stDl').textContent = '📴 Hors ligne — le guidage continue'; } });
+  window.addEventListener('online',  () => { if (nav) { $('stDl').textContent = '📶 Réseau revenu'; } });
 
   // ================= Démarrage =================
   updMute(); drawReports(); startWatch(); openView(null);
@@ -1193,6 +1332,7 @@
   }
   $('welcomeOk').onclick = () => { store.set('welcomed', 1); openView(null); afterWelcome(); };
   if (!store.get('welcomed', 0) && !key()) openView('vWelcome'); else afterWelcome();
+  offerResume();
   if ('speechSynthesis' in window) speechSynthesis.getVoices();
 })();
 </script>
