@@ -281,7 +281,7 @@
       ⚠️ Les routes viennent d'OpenStreetMap. Les hauteurs de ponts, limites de poids et limites de vitesse peuvent manquer ou être fausses.
       Regardez toujours les panneaux. C'est vous le chauffeur.<br><br>
       Vos signalements (police, accident…) restent seulement sur ce téléphone.<br><br>
-      Version 2.1 bêta · 9 nov. 2026
+      Version 2.2 bêta · 10 nov. 2026
     </div>
   </div>
 </div>
@@ -630,12 +630,13 @@
     if (status === 429) return 'Trop de demandes en même temps. Attendez une minute et réessayez.';
     return 'Erreur (' + status + ') ' + esc(typeof m === 'string' ? m : JSON.stringify(m));
   }
-  async function geocode(q){
+  async function geocode(q, auto){
     if (!key()) throw new Error('Mettez d\'abord votre clé dans ☰ Menu › Réglages.');
-    let url = 'https://api.heigit.org/pelias/v1/search?api_key=' + encodeURIComponent(key()) +
+    let url = 'https://api.heigit.org/pelias/v1/' + (auto ? 'autocomplete' : 'search') + '?api_key=' + encodeURIComponent(key()) +
               '&text=' + encodeURIComponent(q) + '&boundary.country=US&size=7';
     if (myPos) url += '&focus.point.lat=' + myPos[0] + '&focus.point.lon=' + myPos[1];
     const r = await net(url, { headers: { 'Authorization': key() } });
+    if (auto && (r.status === 404 || r.status === 400)) return geocode(q, false);   // pas d'auto-complétion : recherche normale
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(errText(j, r.status));
     return (j.features || []).map(f => ({ lat:f.geometry.coordinates[1], lng:f.geometry.coordinates[0], label:f.properties.label, layer:f.properties.layer }));
@@ -650,7 +651,62 @@
       $(box).appendChild(d);
     });
   }
+  // ----- Adresse exacte : service d'adresses du gouvernement américain (Census Bureau), gratuit, sans clé
+  function jsonp(url, ms){
+    return new Promise((resolve, reject) => {
+      const cb = 'gpsCb' + Math.random().toString(36).slice(2);
+      const sc = document.createElement('script');
+      const t = setTimeout(() => { done(); reject(new Error('timeout')); }, ms || 9000);
+      function done(){ clearTimeout(t); try { delete window[cb]; } catch(e){ window[cb] = undefined; } sc.remove(); }
+      window[cb] = d => { done(); resolve(d); };
+      sc.onerror = () => { done(); reject(new Error('réseau')); };
+      sc.src = url + '&format=jsonp&callback=' + cb;
+      document.head.appendChild(sc);
+    });
+  }
+  const houseNum = q => { const m = String(q).match(/^\s*(\d+[A-Za-z]?(?:-\d+)?)\s+\S/); return m ? m[1] : null; };
+  async function census(q){
+    const u = 'https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?benchmark=Public_AR_Current&address=' + encodeURIComponent(q);
+    const d = await jsonp(u);
+    const ms = (d && d.result && d.result.addressMatches) || [];
+    return ms.slice(0, 3).map(m => ({ lat:m.coordinates.y, lng:m.coordinates.x, label:m.matchedAddress, layer:'address', icon:'🎯', exact:true }));
+  }
+  // Si on a choisi une rue (sans numéro) alors qu'on avait tapé un numéro : on cherche le numéro exact
+  async function refineExact(it, typed){
+    if (it.exact || it.layer === 'address' || it.layer === 'venue') return it;
+    const num = houseNum(typed); if (!num) return it;
+    try {
+      const r = await census(num + ' ' + String(it.label).replace(/,\s*(USA|United States)$/i, ''));
+      if (r.length) return r[0];
+    } catch(e){}
+    return it;
+  }
+  // ----- Recherche (pendant la frappe, ou avec 🔎)
+  let searchId = 0, typeTimer = null;
+  async function liveSearch(q, full){
+    const my = ++searchId;
+    msg('searchMsg', '');
+    let exact = [], others = [], err = null, pending = 2;
+    const draw = () => {
+      if (my !== searchId) return;
+      const list = exact.concat(others.filter(o => !exact.some(e => hav([e.lat, e.lng], [o.lat, o.lng]) < 30)));
+      if (list.length) renderList('endRes', list, it => pickWithRefine(it, q));
+      else if (!pending) { $('endRes').innerHTML = ''; msg('searchMsg', err || 'Aucun résultat. Essayez avec le numéro, la rue, la ville et l\'État.'); }
+    };
+    if (!$('endRes').children.length) $('endRes').innerHTML = '<div class="loading">Recherche…</div>';
+    const p1 = geocode(q, !full).then(l => { others = l; }).catch(e => { err = e.message; }).finally(() => { pending--; draw(); });
+    const p2 = (houseNum(q) && q.length >= 8 ? census(q) : Promise.resolve([])).then(l => { exact = l; }).catch(() => {}).finally(() => { pending--; draw(); });
+    await Promise.all([p1, p2]);
+  }
+  async function pickWithRefine(it, typed){
+    if (!it.exact && it.layer !== 'address' && it.layer !== 'venue' && houseNum(typed)) {
+      $('endRes').innerHTML = '<div class="loading">Recherche du numéro exact…</div>';
+      it = await refineExact(it, typed);
+    }
+    pickEnd(it);
+  }
   async function runSearch(qId, resId, onPick){
+    if (qId === 'endQ') { const q = $('endQ').value.trim(); if (q) { clearTimeout(typeTimer); return liveSearch(q, true); } return; }
     const q = $(qId).value.trim(); if (!q) return;
     msg('searchMsg', '');
     $(resId).innerHTML = '<div class="loading">Recherche…</div>';
@@ -672,7 +728,7 @@
         e.preventDefault();
         if (!p || (e.target.dataset && e.target.dataset.edit)) {
           setMode = k; $('endQ').value = ''; $('endQ').placeholder = 'Adresse : ' + name; $('endQ').focus();
-          msg('searchMsg', 'Tapez l\'adresse (' + name + '), touchez 🔎 puis choisissez-la.', true);
+          msg('searchMsg', 'Tapez l\'adresse (' + name + '), puis touchez-la dans la liste.', true);
         } else pickEnd(p);
       };
       box.appendChild(d);
@@ -694,7 +750,13 @@
   $('searchBack').onclick = () => openView(null);
   $('endGo').onclick = () => runSearch('endQ', 'endRes', pickEnd);
   $('endQ').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('endQ').blur(); runSearch('endQ', 'endRes', pickEnd); } });
-  $('endQ').addEventListener('input', () => { $('recentWrap').classList.toggle('hidden', $('endQ').value.trim() !== '' || !store.get('recent', []).length); });
+  $('endQ').addEventListener('input', () => {
+    const q = $('endQ').value.trim();
+    $('recentWrap').classList.toggle('hidden', q !== '' || !store.get('recent', []).length);
+    clearTimeout(typeTimer);
+    if (q.length < 3) { searchId++; $('endRes').innerHTML = ''; msg('searchMsg', ''); return; }
+    typeTimer = setTimeout(() => liveSearch(q, false), 350);
+  });
 
   // ----- Recherche à proximité (OpenStreetMap)
   const CATS = {
